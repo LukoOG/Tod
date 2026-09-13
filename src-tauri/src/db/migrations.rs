@@ -6,7 +6,8 @@ pub fn run_migrations(conn: &mut Connection) -> Result<()> {
     let current_version: i32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
 
     for &(version, sql) in MIGRATIONS {
-        if (version < current_version) {
+        //prevents already applied migrations from being reapplied
+        if version <= current_version {
             continue;
         }
 
