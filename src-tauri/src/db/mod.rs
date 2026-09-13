@@ -1,12 +1,8 @@
 mod migrations;
+mod db;
 
 use rusqlite::{Connection, Result};
 use std::path::Path;
-use std::sync::Mutex;
-
-pub struct Database {
-    pub connection: Mutex<Connection>,
-}
 
 pub fn initialize_database(path: &Path) -> Result<Connection> {
     let mut conn = Connection::open(path)?;
@@ -18,3 +14,4 @@ pub fn initialize_database(path: &Path) -> Result<Connection> {
     migrations::run_migrations(&mut conn)?;
     Ok(conn)
 }
+pub use db::Database;
