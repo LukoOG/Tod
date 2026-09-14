@@ -1,4 +1,4 @@
-mod migrations;
+pub(super) mod migrations;
 mod db;
 
 use rusqlite::{Connection, Result};

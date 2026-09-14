@@ -50,6 +50,8 @@ CREATE TABLE activities (
     FOREIGN KEY (source_routine_id)
         REFERENCES routines(id)
         ON DELETE SET NULL
+
+    UNIQUE(day_date, source_routine_id)
 );
 
 CREATE TABLE tasks (

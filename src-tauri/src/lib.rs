@@ -1,6 +1,9 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod commands;
 mod db;
+mod domain;
 mod models;
+mod test_utils;
 
 use db::{initialize_database, Database};
 use std::sync::Mutex;

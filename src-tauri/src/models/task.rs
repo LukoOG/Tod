@@ -1,13 +1,73 @@
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+use crate::db::Database;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Task {
     pub id: String,
-    pub day_date: String,
+    pub day_date: NaiveDate,
     pub title: String,
     pub completed: bool,
     pub completed_at: Option<String>,
     pub notes: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl Database {
+    pub fn get_tasks_for_day(
+        &self,
+        date: NaiveDate,
+    ) -> Result<Vec<Task>, String> {
+        let conn = self.connection.lock().unwrap();
+        let date_string = date.format("%Y-%m-%d").to_string();
+        let mut stmt = conn
+            .prepare(
+                "
+                SELECT
+                    id,
+                    day_date,
+                    title,
+                    completed,
+                    completed_at,
+                    notes,
+                    created_at,
+                    updated_at
+                FROM tasks
+                WHERE day_date = ?1
+                ",
+            )
+            .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+
+        let task_iter = stmt
+            .query_map([date_string], |row| {
+                let date_string: String = row.get(1)?;
+                let day_date = NaiveDate::parse_from_str(&date_string, "%Y-%m-%d").map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+                Ok(Task {
+                    id: row.get(0)?,
+                    day_date,
+                    title: row.get(2)?,
+                    completed: row.get(3)?,
+                    completed_at: row.get(4)?,
+                    notes: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
+            })
+            .map_err(|e| format!("Failed to query tasks for day {}: {}", date, e))?;
+
+        let mut tasks = Vec::new();
+        for task in task_iter {
+            tasks.push(task.map_err(|e| format!("Failed to map task row: {}", e))?);
+        }
+
+        Ok(tasks)
+    }
 }
