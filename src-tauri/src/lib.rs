@@ -3,7 +3,12 @@ mod commands;
 mod db;
 mod domain;
 mod models;
+
+#[cfg(test)]
 mod test_utils;
+
+#[cfg(test)]
+mod tests;
 
 use db::{initialize_database, Database};
 use std::sync::Mutex;

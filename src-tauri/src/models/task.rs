@@ -1,9 +1,10 @@
 use chrono::NaiveDate;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 use crate::db::Database;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Task {
     pub id: String,
     pub day_date: NaiveDate,
@@ -16,10 +17,86 @@ pub struct Task {
 }
 
 impl Database {
-    pub fn get_tasks_for_day(
-        &self,
-        date: NaiveDate,
-    ) -> Result<Vec<Task>, String> {
+    pub fn create_task(&self, task: Task) -> Result<Task, String> {
+        let conn = self.connection.lock().unwrap();
+        let date_string = task.day_date.format("%Y-%m-%d").to_string();
+
+        conn.execute(
+            "
+            INSERT INTO tasks (
+                id,
+                day_date,
+                title,
+                completed,
+                completed_at,
+                notes,
+                created_at,
+                updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ",
+            params![
+                task.id,
+                date_string,
+                task.title,
+                task.completed,
+                task.completed_at,
+                task.notes,
+                task.created_at,
+                task.updated_at,
+            ],
+        )
+        .map_err(|e| format!("Failed to create task: {}", e))?;
+
+        Ok(task)
+    }
+    pub fn update_task(&self, task: Task) -> Result<Task, String> {
+        let conn = self.connection.lock().unwrap();
+        let date_string = task.day_date.format("%Y-%m-%d").to_string();
+
+        conn.execute(
+            "
+            UPDATE tasks
+            SET
+                day_date = ?2,
+                title = ?3,
+                completed = ?4,
+                completed_at = ?5,
+                notes = ?6,
+                updated_at = ?7
+            WHERE id = ?1
+            ",
+            params![
+                task.id,
+                date_string,
+                task.title,
+                task.completed,
+                task.completed_at,
+                task.notes,
+                task.updated_at,
+            ],
+        )
+        .map_err(|e| format!("Failed to update task: {}", e))?;
+
+        Ok(task)
+    }
+
+    pub fn delete_task(&self, task_id: String) -> Result<(), String> {
+        let conn = self.connection.lock().unwrap();
+
+        conn.execute(
+            "
+            DELETE FROM tasks
+            WHERE id = ?1
+            ",
+            params![task_id],
+        )
+        .map_err(|e| format!("Failed to delete task: {}", e))?;
+
+        Ok(())
+    }
+
+    pub fn get_tasks_for_day(&self, date: NaiveDate) -> Result<Vec<Task>, String> {
         let conn = self.connection.lock().unwrap();
         let date_string = date.format("%Y-%m-%d").to_string();
         let mut stmt = conn
@@ -43,13 +120,14 @@ impl Database {
         let task_iter = stmt
             .query_map([date_string], |row| {
                 let date_string: String = row.get(1)?;
-                let day_date = NaiveDate::parse_from_str(&date_string, "%Y-%m-%d").map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        1,
-                        rusqlite::types::Type::Text,
-                        Box::new(e),
-                    )
-                })?;
+                let day_date =
+                    NaiveDate::parse_from_str(&date_string, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
                 Ok(Task {
                     id: row.get(0)?,
                     day_date,

@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use rusqlite::{Transaction, params};
+use rusqlite::{params, Transaction};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -139,6 +139,64 @@ impl Database {
         Ok(existing)
     }
 
+    pub fn update_activity(&self, activity: Activity) -> Result<Activity, String> {
+        let conn = self.connection.lock().unwrap();
+        let date_string = activity.day_date.format("%Y-%m-%d").to_string();
+
+        let rows_affected = conn
+            .execute(
+                "
+            UPDATE activities
+            SET
+                day_date = ?2,
+                title = ?3,
+                start_time = ?4,
+                duration_minutes = ?5,
+                completed = ?6,
+                completed_at = ?7,
+                notes = ?8,
+                updated_at = ?9
+            WHERE id = ?1
+            ",
+                params![
+                    activity.id,
+                    date_string,
+                    activity.title,
+                    activity.start_time,
+                    activity.duration_minutes,
+                    activity.completed,
+                    activity.completed_at,
+                    activity.notes,
+                    activity.updated_at,
+                ],
+            )
+            .map_err(|e| format!("Failed to update activity: {}", e))?;
+        if rows_affected == 0 {
+            return Err(format!("No activity found with id: {}", activity.id));
+        }
+
+        Ok(activity)
+    }
+
+    pub fn delete_activity(&self, activity_id: String) -> Result<(), String> {
+        let conn = self.connection.lock().unwrap();
+
+        let rows_affected = conn
+            .execute(
+                "
+            DELETE FROM activities
+            WHERE id = ?1
+            ",
+                params![activity_id],
+            )
+            .map_err(|e| format!("Failed to delete activity: {}", e))?;
+        if rows_affected == 0 {
+            return Err(format!("No activity found with id: {}", activity_id));
+        }
+
+        Ok(())
+    }
+
     pub fn get_activities_for_day(
         // tx: &Transaction,
         &self,
@@ -170,13 +228,14 @@ impl Database {
         let activity_iter = stmt
             .query_map([date_string], |row| {
                 let date_string: String = row.get(1)?;
-                let day_date = NaiveDate::parse_from_str(&date_string, "%Y-%m-%d").map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        1,
-                        rusqlite::types::Type::Text,
-                        Box::new(e),
-                    )
-                })?;
+                let day_date =
+                    NaiveDate::parse_from_str(&date_string, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
                 Ok(Activity {
                     id: row.get(0)?,
                     day_date,
