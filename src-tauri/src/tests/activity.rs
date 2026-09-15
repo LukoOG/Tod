@@ -7,13 +7,13 @@ use crate::test_utils::{fixtures::*, setup_test_db};
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Create a Day in the database so that Activity FK constraints are satisfied.
-fn setup_day(db: &crate::db::Database, date_str: &str) {
-    let mut conn = db.connection.lock().unwrap();
-    let tx = conn.transaction().unwrap();
-    crate::db::Database::get_or_create_day(&tx, date_str)
-        .expect("Failed to create test day");
-    tx.commit().unwrap();
-}
+// fn setup_day(db: &crate::db::Database, date_str: &str) {
+//     let mut conn = db.connection.lock().unwrap();
+//     let tx = conn.transaction().unwrap();
+//     crate::db::Database::get_or_create_day(&tx, date_str)
+//         .expect("Failed to create test day");
+//     tx.commit().unwrap();
+// }
 
 // ── Activity persistence ──────────────────────────────────────────────────────
 
