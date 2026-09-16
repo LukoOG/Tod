@@ -11,7 +11,7 @@ mod test_utils;
 mod tests;
 
 use db::{initialize_database, Database};
-use std::{sync::Mutex};
+use std::{path::Path, sync::Mutex};
 use tauri::Manager;
 
 use commands::get_day;
@@ -26,7 +26,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let app_data_dir = app.path().data_dir()?;
+            let app_data_dir = Path::new("../");//app.path().data_dir()?;
             // println!("{}",app_data_dir.display());
             std::fs::create_dir_all(&app_data_dir)?;
             let db_path = app_data_dir.join("planner.db");

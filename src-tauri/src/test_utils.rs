@@ -1,5 +1,5 @@
 #[cfg(test)]
-use std::sync::Mutex;
+use std::{sync::Mutex};
 #[cfg(test)]
 use crate::db::{Database, migrations::run_migrations};
 
