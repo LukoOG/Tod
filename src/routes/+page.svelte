@@ -1,145 +1,95 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
+  import ActivityItem from "../lib/components/ActivityItem.svelte";
+  import DayHeader from "../lib/components/DayHeader.svelte";
+  import TaskItem from "../lib/components/TaskItem.svelte";
+  import { getDay } from "../lib/api/day";
+  import type { Activity, DayView } from "../lib/types/planner";
 
-  let name = $state("");
-  let greetMsg = $state("");
+  let dayView = $state<DayView | null>(null);
+  let isLoading = $state(true);
+  let error = $state<string | null>(null);
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
+  const now = new Date();
+  const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const activities = $derived(dayView?.activities.toSorted(compareActivities) ?? []);
+
+  function compareActivities(a: Activity, b: Activity) {
+    if (a.start_time === null) return b.start_time === null ? 0 : 1;
+    if (b.start_time === null) return -1;
+    return a.start_time.localeCompare(b.start_time);
   }
+
+  async function loadToday() {
+    isLoading = true;
+    error = null;
+
+    try {
+      dayView = await getDay(todayDate);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "Could not load today.";
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  onMount(loadToday);
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<svelte:head>
+  <title>Today · Tod</title>
+  <meta name="description" content="Your plan for today" />
+</svelte:head>
 
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+<main>
+  {#if isLoading}
+    <p class="message" aria-live="polite">Loading today…</p>
+  {:else if error}
+    <div class="message error" role="alert">
+      <p>{error}</p>
+      <button onclick={loadToday}>Try again</button>
+    </div>
+  {:else if dayView}
+    <DayHeader date={dayView.day.date} />
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
+    <section aria-labelledby="activities-heading">
+      <h2 id="activities-heading">Activities</h2>
+      {#if activities.length}
+        <div class="items">
+          {#each activities as activity (activity.id)}
+            <ActivityItem {activity} />
+          {/each}
+        </div>
+      {:else}
+        <p class="empty">No activities scheduled for today.</p>
+      {/if}
+    </section>
+
+    <section aria-labelledby="tasks-heading">
+      <h2 id="tasks-heading">Tasks</h2>
+      {#if dayView.tasks.length}
+        <div class="items">
+          {#each dayView.tasks as task (task.id)}
+            <TaskItem {task} />
+          {/each}
+        </div>
+      {:else}
+        <p class="empty">No tasks for today.</p>
+      {/if}
+    </section>
+  {/if}
 </main>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
+  :global(*) { box-sizing: border-box; }
+  :global(body) { margin: 0; min-width: 320px; background: #f8fafc; color: #202a3a; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+  main { width: min(100% - 2.5rem, 42rem); margin: 0 auto; padding: clamp(3rem, 10vh, 6.5rem) 0 4rem; }
+  section + section { margin-top: 2.75rem; }
+  h2 { margin: 0 0 0.65rem; color: #172033; font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .items { border-bottom: 1px solid #e4e9f0; }
+  .empty, .message { margin: 0; color: #718096; font-size: 0.9375rem; }
+  .error p { margin: 0 0 0.75rem; color: #9b2c2c; }
+  button { padding: 0.4rem 0.7rem; border: 1px solid #b9c8dd; border-radius: 0.375rem; background: #fff; color: #315b91; font: inherit; font-size: 0.875rem; cursor: pointer; }
+  button:hover { border-color: #53709c; }
+  button:focus-visible { outline: 3px solid #b8d5f5; outline-offset: 2px; }
 </style>
