@@ -8,7 +8,6 @@ pub fn setup_test_db() -> Database {
     use rusqlite::Connection;
 
     let mut conn = Connection::open_in_memory().unwrap();
-
     // Enable foreign key enforcement to match production behaviour.
     conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
 
