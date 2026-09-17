@@ -16,6 +16,22 @@ pub struct Task {
     pub updated_at: String,
 }
 
+impl Task {
+    pub fn from(id: String, day_date: NaiveDate, title: String) -> Self {
+        let now = chrono::Utc::now().to_rfc3339();
+        Task {
+            id,
+            day_date,
+            title,
+            completed: false,
+            completed_at: None,
+            notes: None,
+            created_at: now.clone(),
+            updated_at: now,
+        }
+    }
+}
+
 impl Database {
     pub fn create_task(&self, task: Task) -> Result<Task, String> {
         let conn = self.connection.lock().unwrap();

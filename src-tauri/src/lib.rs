@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod domain;
 mod models;
+mod views;
 
 #[cfg(test)]
 mod test_utils;
@@ -11,10 +12,10 @@ mod test_utils;
 mod tests;
 
 use db::{initialize_database, Database};
-use std::{path::Path, sync::Mutex};
+use std::sync::Mutex;
 use tauri::Manager;
 
-use commands::get_day;
+use commands::{get_day, create_task};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -40,7 +41,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, get_day])
+        .invoke_handler(tauri::generate_handler![greet, get_day, create_task])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

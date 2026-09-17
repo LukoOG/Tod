@@ -1,17 +1,8 @@
 use chrono::{Datelike, NaiveDate};
-use serde::Serialize;
 
 use crate::{
-    db::Database,
-    models::{Activity, Day, Task},
+    db::Database, models::Activity, views::DayView,
 };
-
-#[derive(Debug, Serialize)]
-pub struct DayView {
-    pub day: Day,
-    pub activities: Vec<Activity>,
-    pub tasks: Vec<Task>,
-}
 
 pub fn generate_day(db: &Database, date: NaiveDate) -> Result<DayView, String> {
     let day;
