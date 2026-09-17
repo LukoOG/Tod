@@ -41,9 +41,3 @@ export interface Day {
   created_at: string;
   updated_at: string;
 }
-
-export interface DayView {
-  day: Day;
-  activities: Activity[];
-  tasks: Task[];
-}

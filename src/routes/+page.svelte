@@ -3,8 +3,9 @@
   import ActivityItem from "../lib/components/ActivityItem.svelte";
   import DayHeader from "../lib/components/DayHeader.svelte";
   import TaskItem from "../lib/components/TaskItem.svelte";
+  import AddTask from "$lib/components/AddTask.svelte"
   import { getDay } from "../lib/api/day";
-  import type { Activity, DayView } from "../lib/types/planner";
+  import type { Activity, DayView } from "../lib/types";
 
   let dayView = $state<DayView | null>(null);
   let isLoading = $state(true);
@@ -18,6 +19,10 @@
     if (a.start_time === null) return b.start_time === null ? 0 : 1;
     if (b.start_time === null) return -1;
     return a.start_time.localeCompare(b.start_time);
+  }
+
+  function addTaskToDay(task: DayView["tasks"][number]) {
+    if (dayView) dayView.tasks = [...dayView.tasks, task];
   }
 
   async function loadToday() {
@@ -76,6 +81,9 @@
       {:else}
         <p class="empty">No tasks for today.</p>
       {/if}
+      <div class="add">
+        <AddTask date={todayDate} onTaskCreated={addTaskToDay} />
+      </div>
     </section>
   {/if}
 </main>
