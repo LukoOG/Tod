@@ -15,7 +15,7 @@ use db::{initialize_database, Database};
 use std::sync::Mutex;
 use tauri::Manager;
 
-use commands::{get_day, create_task, complete_activity};
+use commands::{get_day, create_task, complete_activity, toggle_task};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,7 +35,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_day, create_task, complete_activity])
+        .invoke_handler(tauri::generate_handler![get_day, create_task, complete_activity, toggle_task])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
