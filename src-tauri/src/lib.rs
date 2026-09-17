@@ -15,13 +15,7 @@ use db::{initialize_database, Database};
 use std::sync::Mutex;
 use tauri::Manager;
 
-use commands::{get_day, create_task};
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    let s = format!("Hello, {}! You greeted from Rust!", name);
-    s
-}
+use commands::{get_day, create_task, complete_activity};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -41,7 +35,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, get_day, create_task])
+        .invoke_handler(tauri::generate_handler![get_day, create_task, complete_activity])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

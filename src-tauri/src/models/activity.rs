@@ -259,4 +259,73 @@ impl Database {
 
         Ok(activities)
     }
+
+    pub fn complete_activity(&self, id: String) -> Result<Activity, String> {
+        let conn = self.connection.lock().unwrap();
+
+        conn.execute(
+            "
+        UPDATE activities
+        SET
+            completed = NOT completed,
+            completed_at = CASE
+                WHEN completed = 0 THEN datetime('now')
+                ELSE NULL
+            END,
+            updated_at = datetime('now')
+        WHERE id = ?1
+        ",
+            params![id],
+        )
+        .map_err(|e| format!("failed to toggle activity: {}", e))?;
+
+        let activity = conn
+            .query_row(
+                "
+            SELECT
+                id,
+                day_date,
+                title,
+                start_time,
+                duration_minutes,
+                completed,
+                completed_at,
+                notes,
+                source_routine_id,
+                created_at,
+                updated_at
+            FROM activities
+            WHERE id = ?1
+            ",
+                params![id],
+                |row| {
+                    let day_date: String = row.get(1)?;
+
+                    Ok(Activity {
+                        id: row.get(0)?,
+                        day_date: NaiveDate::parse_from_str(&day_date, "%Y-%m-%d").map_err(
+                            |e| {
+                                rusqlite::Error::FromSqlConversionFailure(
+                                    1,
+                                    rusqlite::types::Type::Text,
+                                    Box::new(e),
+                                )
+                            },
+                        )?,
+                        title: row.get(2)?,
+                        start_time: row.get(3)?,
+                        duration_minutes: row.get(4)?,
+                        completed: row.get(5)?,
+                        completed_at: row.get(6)?,
+                        notes: row.get(7)?,
+                        source_routine_id: row.get(8)?,
+                        created_at: row.get(9)?,
+                        updated_at: row.get(10)?,
+                    })
+                },
+            )
+            .map_err(|e| format!("failed to get activity: {}", e))?;
+
+        Ok(activity)
+    }
 }
