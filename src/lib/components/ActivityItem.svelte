@@ -4,7 +4,7 @@
   interface Props { activity: Activity; onActivityCompleted: (activity: Activity) => void }
   let { activity, onActivityCompleted }: Props = $props();
 
-  async function toggleActivity(){
+  async function handleCompletectivity(){
     let res = await completeActivity(activity.id)
     console.log(res)
     onActivityCompleted(res)
@@ -18,7 +18,7 @@
     type="button"
     aria-pressed={activity.completed}
     aria-label={activity.completed ? `Mark ${activity.title} incomplete` : `Mark ${activity.title} complete`}
-    onclick={toggleActivity}
+    onclick={handleCompletectivity}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
       {#if activity.completed}

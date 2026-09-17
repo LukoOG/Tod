@@ -29,8 +29,15 @@
 
   function updateActivity(activity: DayView["activities"][number]) {
     if (dayView)
-      dayView.activities = dayView.activities.map((a) =>
-        a.id == activity.id ? activity : a,
+      dayView.activities = dayView.activities.map((prev) =>
+        prev.id == activity.id ? activity : prev,
+      );
+  }
+
+  function updateTask(task: DayView["tasks"][number]) {
+    if (dayView)
+      dayView.tasks = dayView.tasks.map((prev) =>
+        prev.id == task.id ? task : prev,
       );
   }
 
@@ -84,7 +91,7 @@
       {#if dayView.tasks.length}
         <div class="items">
           {#each dayView.tasks as task (task.id)}
-            <TaskItem {task} />
+            <TaskItem onTaskToggled={updateTask} {task} />
           {/each}
         </div>
       {:else}
