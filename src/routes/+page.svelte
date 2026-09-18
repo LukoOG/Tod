@@ -92,19 +92,17 @@
     {#key dayView.day.date}
       <div
         class="day-content"
-        in:fly={{ x: slideDirection * 40, duration: 200 }}
-        out:fly={{ x: -slideDirection * 40, duration: 200 }}
+        in:fly={{ x: slideDirection * 16, duration: 140 }}
+        out:fly={{ x: -slideDirection * 16, duration: 140 }}
       >
         <div class="date-navigation" aria-label="Date navigation">
-          <button onclick={() => changeDate(-1)} aria-label="Previous day">
-            Previous
-          </button>
-          <DayHeader date={dayView.day.date} />
-          <button onclick={returnToToday} disabled={selectedDate === todayDate}>
-            Today
-          </button>
-          <button onclick={() => changeDate(1)} aria-label="Next day">Next</button>
+          <button class="day-step" onclick={() => changeDate(-1)} aria-label="Previous day">‹</button>
+          <DayHeader date={dayView.day.date} isToday={selectedDate === todayDate} />
+          <button class="day-step" onclick={() => changeDate(1)} aria-label="Next day">›</button>
         </div>
+        {#if selectedDate !== todayDate}
+          <div class="today-action"><button onclick={returnToToday}>Back to today</button></div>
+        {/if}
 
         <section aria-labelledby="activities-heading">
           <h2 id="activities-heading">Activities</h2>
@@ -115,7 +113,7 @@
               {/each}
             </div>
           {:else}
-            <p class="empty">No activities scheduled for this day.</p>
+            <p class="empty">Nothing is scheduled for this day.</p>
           {/if}
         </section>
 
@@ -128,7 +126,7 @@
               {/each}
             </div>
           {:else}
-            <p class="empty">No tasks for this day.</p>
+            <p class="empty">No extra tasks yet.</p>
           {/if}
           <div class="add">
             <AddTask date={selectedDate} onTaskCreated={addTaskToDay} />
@@ -146,8 +144,8 @@
   :global(body) {
     margin: 0;
     min-width: 320px;
-    background: #f8fafc;
-    color: #202a3a;
+    background: #fafaf7;
+    color: #292c28;
     font-family:
       Inter,
       ui-sans-serif,
@@ -159,62 +157,69 @@
     line-height: 1.5;
   }
   main {
-    width: min(100% - 2.5rem, 42rem);
+    width: min(100% - 2.5rem, 40rem);
     margin: 0 auto;
-    padding: clamp(3rem, 10vh, 6.5rem) 0 4rem;
+    padding: clamp(2.5rem, 9vh, 5.5rem) 0 4rem;
   }
   section + section {
-    margin-top: 2.75rem;
+    margin-top: 3rem;
   }
   .date-navigation {
-    display: flex;
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem;
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+    gap: 0.5rem;
   }
-  .date-navigation button {
-    flex: 0 0 auto;
+  .day-step {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    background: transparent;
+    color: #6a7068;
+    font: inherit;
+    font-size: 1.65rem;
+    font-weight: 400;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
   }
-  .date-navigation :global(h1) {
-    flex: 1;
-    text-align: center;
-  }
+  .day-step:hover { background: #f0f2ed; color: #3e493d; }
+  .day-step:active { background: #e7ebe4; }
+  .today-action { display: flex; justify-content: center; margin: 0.75rem 0 2.75rem; }
+  .today-action button { padding: 0.2rem 0; border: 0; border-bottom: 1px solid #bcc8b9; background: transparent; border-radius: 0; color: #5f765f; font: inherit; font-size: 0.8125rem; font-weight: 650; cursor: pointer; }
+  .today-action button:hover { color: #405a43; border-color: #698268; }
+  .today-action button:active { transform: translateY(1px); }
+  .day-content > section:first-of-type { margin-top: 2.75rem; }
   h2 {
-    margin: 0 0 0.65rem;
-    color: #172033;
-    font-size: 0.875rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    margin: 0 0 0.5rem;
+    color: #696e67;
+    font-size: 0.75rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .items {
-    border-bottom: 1px solid #e4e9f0;
+    border-bottom: 1px solid #e4e5df;
   }
   .empty,
   .message {
     margin: 0;
-    color: #718096;
+    color: #888c84;
     font-size: 0.9375rem;
   }
-  .error p {
-    margin: 0 0 0.75rem;
-    color: #9b2c2c;
-  }
-  button {
-    padding: 0.4rem 0.7rem;
-    border: 1px solid #b9c8dd;
-    border-radius: 0.375rem;
-    background: #fff;
-    color: #315b91;
-    font: inherit;
-    font-size: 0.875rem;
-    cursor: pointer;
-  }
-  button:hover {
-    border-color: #53709c;
-  }
-  button:focus-visible {
-    outline: 3px solid #b8d5f5;
-    outline-offset: 2px;
+  .message { padding: 1.25rem 0; }
+  .error { max-width: 30rem; border-left: 2px solid #bd8b79; padding-left: 0.85rem; color: #775447; }
+  .error p { margin: 0 0 0.65rem; }
+  .error button { padding: 0; border: 0; border-bottom: 1px solid currentColor; border-radius: 0; background: transparent; color: inherit; }
+  .add { margin-top: 0.25rem; }
+  :global(button:focus-visible) { outline: 3px solid #c6d9c1; outline-offset: 2px; }
+  @media (max-width: 460px) {
+    main { width: min(100% - 1.5rem, 40rem); padding-top: 2rem; }
+    .date-navigation { grid-template-columns: 2rem minmax(0, 1fr) 2rem; gap: 0.15rem; }
+    .day-step { width: 2rem; height: 2rem; }
   }
 </style>
