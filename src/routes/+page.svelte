@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fly } from "svelte/transition";
   import { onMount } from "svelte";
   import ActivityItem from "../lib/components/ActivityItem.svelte";
   import DayHeader from "../lib/components/DayHeader.svelte";
@@ -13,6 +14,8 @@
 
   const now = new Date();
   const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  let selectedDate = $state(todayDate);
+  let slideDirection = $state(1);
   const activities = $derived(
     dayView?.activities.toSorted(compareActivities) ?? [],
   );
@@ -41,20 +44,35 @@
       );
   }
 
-  async function loadToday() {
+  function changeDate(days: number) {
+    const date = new Date(`${selectedDate}T00:00:00`);
+    date.setDate(date.getDate() + days);
+    selectedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    slideDirection = days > 0 ? 1 : -1;
+    loadDay();
+  }
+
+  function returnToToday() {
+    if (selectedDate === todayDate) return;
+    slideDirection = selectedDate < todayDate ? 1 : -1;
+    selectedDate = todayDate;
+    loadDay();
+  }
+
+  async function loadDay() {
     isLoading = true;
     error = null;
 
     try {
-      dayView = await getDay(todayDate);
+      dayView = await getDay(selectedDate);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Could not load today.";
+      error = cause instanceof Error ? cause.message : "Could not load this day.";
     } finally {
       isLoading = false;
     }
   }
 
-  onMount(loadToday);
+  onMount(loadDay);
 </script>
 
 <svelte:head>
@@ -64,43 +82,60 @@
 
 <main>
   {#if isLoading}
-    <p class="message" aria-live="polite">Loading today…</p>
+    <p class="message" aria-live="polite">Loading day…</p>
   {:else if error}
     <div class="message error" role="alert">
       <p>{error}</p>
-      <button onclick={loadToday}>Try again</button>
+      <button onclick={loadDay}>Try again</button>
     </div>
   {:else if dayView}
-    <DayHeader date={dayView.day.date} />
-
-    <section aria-labelledby="activities-heading">
-      <h2 id="activities-heading">Activities</h2>
-      {#if activities.length}
-        <div class="items">
-          {#each activities as activity (activity.id)}
-            <ActivityItem onActivityCompleted={updateActivity} {activity} />
-          {/each}
+    {#key dayView.day.date}
+      <div
+        class="day-content"
+        in:fly={{ x: slideDirection * 40, duration: 200 }}
+        out:fly={{ x: -slideDirection * 40, duration: 200 }}
+      >
+        <div class="date-navigation" aria-label="Date navigation">
+          <button onclick={() => changeDate(-1)} aria-label="Previous day">
+            Previous
+          </button>
+          <DayHeader date={dayView.day.date} />
+          <button onclick={returnToToday} disabled={selectedDate === todayDate}>
+            Today
+          </button>
+          <button onclick={() => changeDate(1)} aria-label="Next day">Next</button>
         </div>
-      {:else}
-        <p class="empty">No activities scheduled for today.</p>
-      {/if}
-    </section>
 
-    <section aria-labelledby="tasks-heading">
-      <h2 id="tasks-heading">Tasks</h2>
-      {#if dayView.tasks.length}
-        <div class="items">
-          {#each dayView.tasks as task (task.id)}
-            <TaskItem onTaskToggled={updateTask} {task} />
-          {/each}
-        </div>
-      {:else}
-        <p class="empty">No tasks for today.</p>
-      {/if}
-      <div class="add">
-        <AddTask date={todayDate} onTaskCreated={addTaskToDay} />
+        <section aria-labelledby="activities-heading">
+          <h2 id="activities-heading">Activities</h2>
+          {#if activities.length}
+            <div class="items">
+              {#each activities as activity (activity.id)}
+                <ActivityItem onActivityCompleted={updateActivity} {activity} />
+              {/each}
+            </div>
+          {:else}
+            <p class="empty">No activities scheduled for this day.</p>
+          {/if}
+        </section>
+
+        <section aria-labelledby="tasks-heading">
+          <h2 id="tasks-heading">Tasks</h2>
+          {#if dayView.tasks.length}
+            <div class="items">
+              {#each dayView.tasks as task (task.id)}
+                <TaskItem onTaskToggled={updateTask} {task} />
+              {/each}
+            </div>
+          {:else}
+            <p class="empty">No tasks for this day.</p>
+          {/if}
+          <div class="add">
+            <AddTask date={selectedDate} onTaskCreated={addTaskToDay} />
+          </div>
+        </section>
       </div>
-    </section>
+    {/key}
   {/if}
 </main>
 
@@ -130,6 +165,19 @@
   }
   section + section {
     margin-top: 2.75rem;
+  }
+  .date-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .date-navigation button {
+    flex: 0 0 auto;
+  }
+  .date-navigation :global(h1) {
+    flex: 1;
+    text-align: center;
   }
   h2 {
     margin: 0 0 0.65rem;
