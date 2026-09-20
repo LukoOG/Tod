@@ -189,7 +189,7 @@
   }
   .day-step:hover { background: #f0f2ed; color: #3e493d; }
   .day-step:active { background: #e7ebe4; }
-  .today-action { display: flex; justify-content: center; margin: 0.75rem 0 2.75rem; }
+  .today-action { display: flex; justify-content: center; margin: 0.75rem 0 0; }
   .today-action button { padding: 0.2rem 0; border: 0; border-bottom: 1px solid #bcc8b9; background: transparent; border-radius: 0; color: #5f765f; font: inherit; font-size: 0.8125rem; font-weight: 650; cursor: pointer; }
   .today-action button:hover { color: #405a43; border-color: #698268; }
   .today-action button:active { transform: translateY(1px); }
