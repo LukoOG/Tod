@@ -22,9 +22,9 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let app_data_dir = app.path().data_dir()?;
-            // println!("{}",app_data_dir.display());
             std::fs::create_dir_all(&app_data_dir)?;
             let db_path = app_data_dir.join("planner.db");
+            println!("{}",db_path.display());
             let connection =
                 initialize_database(&db_path).map_err(|e| tauri::Error::Anyhow(e.into()))?;
             let db = Database {
