@@ -234,4 +234,66 @@ impl Database {
 
         Ok(task)
     }
+
+    pub fn update_task_notes(
+        &self,
+        id: String,
+        notes: Option<String>,
+    ) -> Result<Task, String> {
+        let conn = self.connection.lock().unwrap();
+
+        let rows_affected = conn
+            .execute(
+                "
+            UPDATE tasks
+            SET
+                notes = ?2,
+                updated_at = datetime('now')
+            WHERE id = ?1
+            ",
+                params![id, notes],
+            )
+            .map_err(|e| format!("Failed to update task notes: {}", e))?;
+
+        if rows_affected == 0 {
+            return Err(format!("No task found with id: {}", id));
+        }
+
+        conn.query_row(
+            "
+            SELECT
+                id,
+                day_date,
+                title,
+                completed,
+                completed_at,
+                notes,
+                created_at,
+                updated_at
+            FROM tasks
+            WHERE id = ?1
+            ",
+            params![id],
+            |row| {
+                let day_date: String = row.get(1)?;
+                Ok(Task {
+                    id: row.get(0)?,
+                    day_date: NaiveDate::parse_from_str(&day_date, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?,
+                    title: row.get(2)?,
+                    completed: row.get(3)?,
+                    completed_at: row.get(4)?,
+                    notes: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Failed to retrieve task after notes update: {}", e))
+    }
 }

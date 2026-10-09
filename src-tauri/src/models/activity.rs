@@ -328,4 +328,72 @@ impl Database {
 
         Ok(activity)
     }
+
+    pub fn update_activity_notes(
+        &self,
+        id: String,
+        notes: Option<String>,
+    ) -> Result<Activity, String> {
+        let conn = self.connection.lock().unwrap();
+
+        let rows_affected = conn
+            .execute(
+                "
+            UPDATE activities
+            SET
+                notes = ?2,
+                updated_at = datetime('now')
+            WHERE id = ?1
+            ",
+                rusqlite::params![id, notes],
+            )
+            .map_err(|e| format!("Failed to update activity notes: {}", e))?;
+
+        if rows_affected == 0 {
+            return Err(format!("No activity found with id: {}", id));
+        }
+
+        conn.query_row(
+            "
+            SELECT
+                id,
+                day_date,
+                title,
+                start_time,
+                duration_minutes,
+                completed,
+                completed_at,
+                notes,
+                source_routine_id,
+                created_at,
+                updated_at
+            FROM activities
+            WHERE id = ?1
+            ",
+            rusqlite::params![id],
+            |row| {
+                let day_date: String = row.get(1)?;
+                Ok(Activity {
+                    id: row.get(0)?,
+                    day_date: NaiveDate::parse_from_str(&day_date, "%Y-%m-%d").map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?,
+                    title: row.get(2)?,
+                    start_time: row.get(3)?,
+                    duration_minutes: row.get(4)?,
+                    completed: row.get(5)?,
+                    completed_at: row.get(6)?,
+                    notes: row.get(7)?,
+                    source_routine_id: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Failed to retrieve activity after notes update: {}", e))
+    }
 }

@@ -293,3 +293,98 @@ fn generate_day_returns_activities_and_tasks_together() {
     assert_eq!(result.tasks.len(), 1);
     assert_eq!(result.tasks[0], task);
 }
+
+// ── Daily reflection ──────────────────────────────────────────────────────────
+
+#[test]
+fn update_day_reflection_saves_reflection_and_mood() {
+    let db = setup_test_db();
+
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    // Day does not yet exist — the method must create it.
+    let result = db
+        .update_day_reflection(date, Some("Had a productive day".to_string()), Some(4))
+        .expect("Failed to update day reflection");
+
+    assert_eq!(result.date, date);
+    assert_eq!(result.reflection, Some("Had a productive day".to_string()));
+    assert_eq!(result.mood, Some(4));
+}
+
+#[test]
+fn update_day_reflection_updates_existing_day() {
+    let db = setup_test_db();
+
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    // Create the day via generate_day first.
+    generate_day(&db, date).expect("Failed to generate day");
+
+    let result = db
+        .update_day_reflection(date, Some("Better than yesterday".to_string()), Some(5))
+        .expect("Failed to update day reflection");
+
+    assert_eq!(result.reflection, Some("Better than yesterday".to_string()));
+    assert_eq!(result.mood, Some(5));
+}
+
+#[test]
+fn update_day_reflection_does_not_create_duplicate_day() {
+    let db = setup_test_db();
+
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    // Create a day entry.
+    generate_day(&db, date).expect("Failed to generate day");
+
+    // Update it twice — must not create a second row.
+    db.update_day_reflection(date, Some("First reflection".to_string()), Some(3))
+        .expect("Failed first update");
+
+    db.update_day_reflection(date, Some("Second reflection".to_string()), Some(5))
+        .expect("Failed second update");
+
+    // The day should still exist exactly once with the latest values.
+    let conn = db.connection.lock().unwrap();
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM days WHERE date = ?1",
+            rusqlite::params!["2026-09-14"],
+            |row| row.get(0),
+        )
+        .expect("Failed to count days");
+
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn update_day_reflection_sets_mood_without_reflection() {
+    let db = setup_test_db();
+
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let result = db
+        .update_day_reflection(date, None, Some(3))
+        .expect("Failed to update mood only");
+
+    assert_eq!(result.reflection, None);
+    assert_eq!(result.mood, Some(3));
+}
+
+#[test]
+fn update_day_reflection_clears_reflection_and_mood() {
+    let db = setup_test_db();
+
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    db.update_day_reflection(date, Some("Something".to_string()), Some(4))
+        .expect("Failed to set initial values");
+
+    let result = db
+        .update_day_reflection(date, None, None)
+        .expect("Failed to clear reflection and mood");
+
+    assert_eq!(result.reflection, None);
+    assert_eq!(result.mood, None);
+}

@@ -231,3 +231,89 @@ fn delete_task_does_not_remove_other_tasks() {
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0], task_2);
 }
+
+// ── Task notes ────────────────────────────────────────────────────────────────
+
+#[test]
+fn update_task_notes_saves_notes() {
+    let db = setup_test_db();
+
+    create_day(&db, "2026-09-14");
+
+    let task = sample_task("2026-09-14", "task_1", "Write journal entry");
+    db.create_task(task.clone()).expect("Failed to create task");
+
+    let result = db
+        .update_task_notes(task.id.clone(), Some("Wrote 3 pages".to_string()))
+        .expect("Failed to update task notes");
+
+    assert_eq!(result.id, task.id);
+    assert_eq!(result.notes, Some("Wrote 3 pages".to_string()));
+
+    // Verify persistence.
+    let tasks = db
+        .get_tasks_for_day(task.day_date)
+        .expect("Failed to re-query tasks");
+    assert_eq!(tasks[0].notes, Some("Wrote 3 pages".to_string()));
+}
+
+#[test]
+fn update_task_notes_overwrites_existing_notes() {
+    let db = setup_test_db();
+
+    create_day(&db, "2026-09-14");
+
+    let task = sample_task("2026-09-14", "task_1", "Write journal entry");
+    db.create_task(task.clone()).expect("Failed to create task");
+
+    db.update_task_notes(task.id.clone(), Some("First note".to_string()))
+        .expect("Failed to set initial notes");
+
+    let result = db
+        .update_task_notes(task.id.clone(), Some("Updated note".to_string()))
+        .expect("Failed to update notes again");
+
+    assert_eq!(result.notes, Some("Updated note".to_string()));
+
+    let tasks = db
+        .get_tasks_for_day(task.day_date)
+        .expect("Failed to re-query tasks");
+    assert_eq!(tasks[0].notes, Some("Updated note".to_string()));
+}
+
+#[test]
+fn update_task_notes_clears_notes_when_none() {
+    let db = setup_test_db();
+
+    create_day(&db, "2026-09-14");
+
+    let task = sample_task("2026-09-14", "task_1", "Write journal entry");
+    db.create_task(task.clone()).expect("Failed to create task");
+
+    db.update_task_notes(task.id.clone(), Some("Some note".to_string()))
+        .expect("Failed to set notes");
+
+    let result = db
+        .update_task_notes(task.id.clone(), None)
+        .expect("Failed to clear notes");
+
+    assert_eq!(result.notes, None);
+
+    let tasks = db
+        .get_tasks_for_day(task.day_date)
+        .expect("Failed to re-query tasks");
+    assert_eq!(tasks[0].notes, None);
+}
+
+#[test]
+fn update_task_notes_returns_error_for_missing_id() {
+    let db = setup_test_db();
+
+    let result = db.update_task_notes("nonexistent-id".to_string(), Some("Note".to_string()));
+
+    assert!(
+        result.is_err(),
+        "Expected an error when updating notes for a non-existent task"
+    );
+    assert!(result.unwrap_err().contains("nonexistent-id"));
+}
