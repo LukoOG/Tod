@@ -2,6 +2,8 @@
   import { updateDayReflection } from "$lib/api/day";
   import type { Day } from "$lib/types";
 
+  function focus(node: HTMLElement) { node.focus(); }
+
   interface Props {
     day: Day;
     onDayUpdated: (day: Day) => void;
@@ -9,33 +11,38 @@
 
   let { day, onDayUpdated }: Props = $props();
 
-  // Local editor state — separate from the prop so cancel always restores cleanly.
-  // Initialised via $effect below so Svelte 5 knows these track the prop reactively.
   let draftReflection = $state("");
   let draftMood = $state<number | null>(null);
   let isSaving = $state(false);
+  let saveSuccess = $state(false);
   let error = $state<string | null>(null);
+  let isExpanded = $state(false);
+
   let isDirty = $derived(
     draftReflection.trim() !== (day.reflection ?? "") ||
     draftMood !== (day.mood ?? null)
   );
 
-  // Sync local state with the prop on mount and whenever the parent swaps in a
-  // different day (date navigation).
+  // Sync local state with the prop on mount and when the day changes
   $effect(() => {
     draftReflection = day.reflection ?? "";
     draftMood = day.mood ?? null;
     error = null;
+    saveSuccess = false;
+    isExpanded = !!(day.reflection || day.mood !== null);
   });
 
   async function save() {
     if (isSaving) return;
     isSaving = true;
     error = null;
+    saveSuccess = false;
     const reflection = draftReflection.trim() === "" ? null : draftReflection.trim();
     try {
       const updated = await updateDayReflection(day.date, reflection, draftMood);
       onDayUpdated(updated);
+      saveSuccess = true;
+      setTimeout(() => { saveSuccess = false; }, 2000);
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to save reflection.";
     } finally {
@@ -49,58 +56,81 @@
     error = null;
   }
 
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+    if (e.key === "Escape" && isDirty) { cancel(); }
+  }
+
+  function expand() {
+    isExpanded = true;
+  }
+
   const MOODS = [
-    { value: 1, label: "Rough" },
-    { value: 2, label: "Meh" },
-    { value: 3, label: "Okay" },
-    { value: 4, label: "Good" },
-    { value: 5, label: "Great" },
+    { value: 1, label: "Rough", emoji: "😞" },
+    { value: 2, label: "Meh",   emoji: "😐" },
+    { value: 3, label: "Okay",  emoji: "🙂" },
+    { value: 4, label: "Good",  emoji: "😊" },
+    { value: 5, label: "Great", emoji: "😄" },
   ] as const;
+
+  const selectedMoodEmoji = $derived(MOODS.find(m => m.value === draftMood)?.emoji ?? null);
 </script>
 
 <section class="reflection" aria-labelledby="reflection-heading">
-  <h2 id="reflection-heading">Reflection</h2>
-
-  <div class="mood-row">
-    {#each MOODS as m}
-      <button
-        type="button"
-        class="mood-btn"
-        class:selected={draftMood === m.value}
-        aria-pressed={draftMood === m.value}
-        aria-label={`Mood: ${m.label}`}
-        onclick={() => { draftMood = draftMood === m.value ? null : m.value; }}
-      >
-        {m.value}
-        <span class="mood-label">{m.label}</span>
-      </button>
-    {/each}
+  <div class="section-header">
+    <h2 id="reflection-heading">Reflection</h2>
+    {#if saveSuccess}
+      <span class="save-badge" aria-live="polite">Saved</span>
+    {/if}
   </div>
 
-  <textarea
-    id="reflection-textarea"
-    aria-label="Daily reflection"
-    placeholder="How did today go?"
-    rows={4}
-    bind:value={draftReflection}
-    disabled={isSaving}
-  ></textarea>
+  {#if !isExpanded}
+    <button type="button" class="expand-btn" onclick={expand}>
+      <span class="expand-placeholder">How did today go?</span>
+      <span class="expand-hint">Click to write a reflection…</span>
+    </button>
+  {:else}
+    <div class="mood-row" aria-label="Mood rating">
+      {#each MOODS as m}
+        <button
+          type="button"
+          class="mood-btn"
+          class:selected={draftMood === m.value}
+          aria-pressed={draftMood === m.value}
+          aria-label={`Mood: ${m.label}`}
+          onclick={() => { draftMood = draftMood === m.value ? null : m.value; }}
+        >
+          <span class="mood-emoji">{m.emoji}</span>
+          <span class="mood-label">{m.label}</span>
+        </button>
+      {/each}
+    </div>
 
-  {#if error}
-    <p class="save-error" role="alert">{error}</p>
-  {/if}
+    <textarea
+      id="reflection-textarea"
+      aria-label="Daily reflection"
+      placeholder="How did today go?"
+      rows={4}
+      bind:value={draftReflection}
+      disabled={isSaving}
+      onkeydown={handleKeydown}
+      use:focus
+    ></textarea>
 
-  {#if isDirty || day.reflection !== null || day.mood !== null}
-    <div class="actions">
-      <button
-        type="button"
-        class="btn-save"
-        onclick={save}
-        disabled={isSaving || !isDirty}
-      >
-        {isSaving ? "Saving…" : "Save"}
-      </button>
-      {#if isDirty}
+    {#if error}
+      <p class="save-error" role="alert">{error}</p>
+    {/if}
+
+    {#if isDirty}
+      <div class="actions">
+        <button
+          type="button"
+          class="btn-save"
+          onclick={save}
+          disabled={isSaving}
+        >
+          {isSaving ? "Saving…" : "Save reflection"}
+        </button>
         <button
           type="button"
           class="btn-cancel"
@@ -109,122 +139,185 @@
         >
           Cancel
         </button>
-      {/if}
-    </div>
+        <span class="kbd-hint">⌘↵ to save</span>
+      </div>
+    {:else if !isDirty && (day.reflection !== null || day.mood !== null)}
+      <div class="actions">
+        <button type="button" class="btn-save" onclick={save} disabled={isSaving || !isDirty}>
+          {isSaving ? "Saving…" : "Saved"}
+        </button>
+      </div>
+    {/if}
   {/if}
 </section>
 
 <style>
   .reflection {
-    margin-top: 2.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--c-separator);
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
   }
   h2 {
-    margin: 0 0 0.75rem;
-    color: #7a7f78;
-    font-size: 0.7rem;
+    margin: 0;
+    color: var(--c-label-tertiary);
+    font-size: 0.625rem;
     font-weight: 700;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .save-badge {
+    padding: 0.0625rem 0.375rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--c-accent) 15%, transparent);
+    color: var(--c-accent);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
-  /* ── mood row ────────────────────────────────────── */
+  /* expand prompt */
+  .expand-btn {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px dashed var(--c-separator-opaque);
+    border-radius: var(--radius);
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 80ms ease, background 80ms ease;
+  }
+  .expand-btn:hover {
+    border-color: var(--c-label-quaternary);
+    background: var(--c-fill-secondary);
+  }
+  .expand-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+  .expand-placeholder {
+    color: var(--c-label-secondary);
+    font-size: 0.875rem;
+  }
+  .expand-hint {
+    color: var(--c-label-quaternary);
+    font-size: 0.6875rem;
+  }
+
+  /* mood row */
   .mood-row {
     display: flex;
-    gap: 0.35rem;
-    margin-bottom: 0.75rem;
+    gap: 0.3125rem;
+    margin-bottom: 0.625rem;
   }
   .mood-btn {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.15rem;
-    flex: 1;
-    padding: 0.35rem 0.2rem;
-    border: 1.5px solid #dde3da;
-    border-radius: 0.5rem;
-    background: transparent;
-    color: #7a7f78;
-    font: inherit;
-    font-size: 0.875rem;
-    font-weight: 600;
+    gap: 0.125rem;
+    padding: 0.375rem 0.25rem;
+    border: 1px solid var(--c-separator-opaque);
+    border-radius: var(--radius-sm);
+    background: none;
     cursor: pointer;
-    transition: border-color 100ms ease, background-color 100ms ease, color 100ms ease;
-  }
-  .mood-label {
-    font-size: 0.6rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: #a0a59e;
+    transition: border-color 80ms ease, background 80ms ease;
   }
   .mood-btn:hover:not(.selected) {
-    border-color: #b5c8b1;
-    background: #f4f7f2;
+    border-color: var(--c-label-quaternary);
+    background: var(--c-fill-secondary);
   }
-  .mood-btn:focus-visible { outline: 2px solid #b8d0b5; outline-offset: 2px; }
+  .mood-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
   .mood-btn.selected {
-    border-color: #6a826a;
-    background: #eef4ec;
-    color: #3e5641;
+    border-color: var(--c-accent);
+    background: color-mix(in srgb, var(--c-accent) 10%, transparent);
   }
-  .mood-btn.selected .mood-label { color: #6a826a; }
+  .mood-emoji { font-size: 1rem; line-height: 1; }
+  .mood-label {
+    color: var(--c-label-tertiary);
+    font-size: 0.5625rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .mood-btn.selected .mood-label { color: var(--c-accent); }
 
-  /* ── textarea ────────────────────────────────────── */
+  /* textarea */
   textarea {
     width: 100%;
-    padding: 0.6rem 0.7rem;
-    border: 1px solid #d0d5cd;
-    border-radius: 0.5rem;
-    background: transparent;
-    color: #252824;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--c-separator-opaque);
+    border-radius: var(--radius-sm);
+    background: var(--c-fill-tertiary);
+    color: var(--c-label-primary);
     font: inherit;
-    font-size: 0.9375rem;
-    line-height: 1.55;
+    font-size: 0.875rem;
+    line-height: 1.6;
     resize: vertical;
-    transition: border-color 100ms ease;
+    transition: border-color 100ms ease, box-shadow 100ms ease;
     box-sizing: border-box;
   }
-  textarea::placeholder { color: #9a9e97; }
-  textarea:hover:not(:disabled) { border-color: #aab5a7; }
+  textarea::placeholder { color: var(--c-label-quaternary); }
+  textarea:hover:not(:disabled) { border-color: var(--c-label-quaternary); }
   textarea:focus {
     outline: none;
-    border-color: #6f8a6f;
-    box-shadow: 0 0 0 2px #b8d0b540;
+    border-color: var(--c-accent);
+    box-shadow: 0 0 0 2.5px var(--c-accent-muted);
   }
-  textarea:disabled { opacity: 0.6; }
+  textarea:disabled { opacity: 0.55; }
 
-  /* ── save error ──────────────────────────────────── */
+  /* error */
   .save-error {
-    margin: 0.4rem 0 0;
-    padding-left: 0.6rem;
-    border-left: 2px solid #c89982;
-    color: #7a5040;
-    font-size: 0.875rem;
+    margin: 0.375rem 0 0;
+    padding: 0.3125rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--c-destructive) 8%, transparent);
+    color: var(--c-destructive);
+    font-size: 0.8125rem;
   }
 
-  /* ── action row ──────────────────────────────────── */
+  /* action row */
   .actions {
     display: flex;
-    gap: 0.75rem;
     align-items: center;
-    margin-top: 0.6rem;
+    gap: 0.625rem;
+    margin-top: 0.5rem;
   }
-  .btn-save,
-  .btn-cancel {
-    padding: 0.2rem 0;
-    border: 0;
-    border-bottom: 1px solid currentColor;
-    border-radius: 0;
-    background: transparent;
+  .btn-save {
+    padding: 0.25rem 0.75rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--c-accent);
+    color: #fff;
     font: inherit;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: opacity 100ms ease;
+    transition: opacity 80ms ease;
   }
-  .btn-save { color: #5f765f; font-weight: 650; }
-  .btn-cancel { color: #909690; }
-  .btn-save:hover:not(:disabled),
-  .btn-cancel:hover:not(:disabled) { opacity: 0.7; }
-  .btn-save:disabled { cursor: default; opacity: 0.4; }
-  .btn-cancel:disabled { cursor: wait; opacity: 0.45; }
+  .btn-save:hover:not(:disabled) { opacity: 0.85; }
+  .btn-save:disabled { opacity: 0.5; cursor: default; }
+  .btn-cancel {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--c-separator-opaque);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--c-label-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: background 80ms ease;
+  }
+  .btn-cancel:hover:not(:disabled) { background: var(--c-fill-secondary); }
+  .btn-cancel:disabled { opacity: 0.5; cursor: wait; }
+  .kbd-hint {
+    margin-left: auto;
+    color: var(--c-label-quaternary);
+    font-size: 0.6875rem;
+  }
 </style>

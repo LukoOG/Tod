@@ -10,6 +10,7 @@
   let { date, onTaskCreated }: Props = $props();
   let title = $state("");
   let isSubmitting = $state(false);
+  let inputEl: HTMLInputElement;
 
   async function addTask() {
     const taskTitle = title.trim();
@@ -26,66 +27,81 @@
   }
 </script>
 
-<form onsubmit={(event) => { event.preventDefault(); addTask(); }}>
-  <label class="sr-only" for="new-task">Task title</label>
+<form
+  class="add-task-form"
+  onsubmit={(e) => { e.preventDefault(); addTask(); }}
+>
+  <span class="plus-icon" aria-hidden="true">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+      <path d="M8 3v10M3 8h10"/>
+    </svg>
+  </span>
+  <label class="sr-only" for="new-task-input">New task title</label>
   <input
-    id="new-task"
+    id="new-task-input"
+    bind:this={inputEl}
     bind:value={title}
     placeholder="Add a task…"
     disabled={isSubmitting}
     autocomplete="off"
   />
-  <button type="submit" disabled={!title.trim() || isSubmitting}>Add</button>
+  {#if title.trim()}
+    <button type="submit" class="submit-btn" disabled={isSubmitting}>
+      {isSubmitting ? "…" : "Add"}
+    </button>
+  {/if}
 </form>
 
 <style>
   .sr-only {
     position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    width: 1px; height: 1px;
+    padding: 0; overflow: hidden;
+    clip: rect(0,0,0,0);
     white-space: nowrap;
     border: 0;
   }
-  form {
+  .add-task-form {
     display: flex;
-    gap: 0.55rem;
-    padding-top: 0.35rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4375rem 0.25rem 0.4375rem 0;
+    border-top: 1px solid var(--c-separator);
   }
+  .plus-icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--c-label-quaternary);
+  }
+  .plus-icon svg { width: 0.75rem; height: 0.75rem; }
   input {
-    min-width: 0;
     flex: 1;
-    padding: 0.5rem 0;
-    border: 0;
-    border-bottom: 1px solid #d0d5cd;
-    border-radius: 0;
-    outline: none;
+    min-width: 0;
+    padding: 0;
+    border: none;
     background: transparent;
-    color: #252824;
-    font: inherit;
-    font-size: 0.9375rem;
-    transition: border-color 100ms ease;
-  }
-  input::placeholder { color: #9a9e97; }
-  input:hover { border-color: #aab5a7; }
-  input:focus {
-    border-color: #6f8a6f;
-    box-shadow: 0 2px 0 -1px #6f8a6f;
-  }
-  button {
-    padding: 0.3rem 0.15rem;
-    border: 0;
-    background: transparent;
-    color: #5f765f;
+    color: var(--c-label-primary);
     font: inherit;
     font-size: 0.875rem;
-    font-weight: 650;
-    cursor: pointer;
-    transition: color 100ms ease;
+    outline: none;
   }
-  button:hover:not(:disabled) { color: #3f5a42; }
-  button:focus-visible { outline: 2px solid #b8d0b5; outline-offset: 2px; }
-  button:disabled { cursor: default; opacity: 0.4; }
+  input::placeholder { color: var(--c-label-quaternary); }
+  .submit-btn {
+    flex-shrink: 0;
+    padding: 0.125rem 0.5rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--c-accent);
+    color: #fff;
+    font: inherit;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 80ms ease;
+  }
+  .submit-btn:hover:not(:disabled) { opacity: 0.85; }
+  .submit-btn:disabled { opacity: 0.55; cursor: wait; }
 </style>
