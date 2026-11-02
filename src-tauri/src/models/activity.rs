@@ -139,6 +139,7 @@ impl Database {
         Ok(existing)
     }
 
+    #[allow(dead_code)]
     pub fn update_activity(&self, activity: Activity) -> Result<Activity, String> {
         let conn = self.connection.lock().unwrap();
         let date_string = activity.day_date.format("%Y-%m-%d").to_string();
@@ -178,6 +179,7 @@ impl Database {
         Ok(activity)
     }
 
+    #[allow(dead_code)]
     pub fn delete_activity(&self, activity_id: String) -> Result<(), String> {
         let conn = self.connection.lock().unwrap();
 

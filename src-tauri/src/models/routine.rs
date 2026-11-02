@@ -1,5 +1,3 @@
-use std::print;
-
 use super::super::db::Database;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -15,8 +13,8 @@ pub struct Routine {
     pub updated_at: String,
 }
 
-//Routine Crud
 impl Database {
+    #[allow(dead_code)]
     pub fn create_routine(&self, routine: Routine) -> Result<Routine, String> {
         let conn = self.connection.lock().unwrap();
         let result = conn.execute(
@@ -41,6 +39,7 @@ impl Database {
         }
     }
 
+    #[allow(dead_code)]
     pub fn list_routines(&self) -> Result<Vec<Routine>, String> {
         let conn = self.connection.lock().unwrap();
         let mut stmt = conn
@@ -68,6 +67,7 @@ impl Database {
         Ok(routines)
     }
 
+    #[allow(dead_code)]
     pub fn update_routine(&self, routine: Routine) -> Result<Routine, String> {
         let conn = self.connection.lock().unwrap();
         let rows_affected = conn.execute(
@@ -93,6 +93,7 @@ impl Database {
         Ok(routine)
     }
 
+    #[allow(dead_code)]
     pub fn delete_routine(&self, routine_id: String) -> Result<(), String> {
         let conn = self.connection.lock().unwrap();
         let rows_affected = conn

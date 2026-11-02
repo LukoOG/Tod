@@ -5,5 +5,4 @@ mod task;
 
 pub use activity::*;
 pub use day::*;
-pub use routine::*;
 pub use task::*;

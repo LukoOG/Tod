@@ -1,6 +1,10 @@
 <script lang="ts">
-  interface Props { date: string; isToday: boolean; }
-  let { date, isToday }: Props = $props();
+  interface Props {
+    date: string;
+    isToday: boolean;
+    onDatePicked?: (date: string) => void;
+  }
+  let { date, isToday, onDatePicked }: Props = $props();
 
   const dayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "long" });
   const dateFormatter = new Intl.DateTimeFormat(undefined, { month: "long", day: "numeric", year: "numeric" });
@@ -12,7 +16,22 @@
     {dayFormatter.format(parseDate(date))}
     {#if isToday}<span class="today-pill">Today</span>{/if}
   </p>
-  <h1>{dateFormatter.format(parseDate(date))}</h1>
+
+  {#if onDatePicked}
+    <!-- Overlay pattern: transparent date input sits over the h1 -->
+    <div class="date-jump" title="Click to jump to a date">
+      <h1>{dateFormatter.format(parseDate(date))}</h1>
+      <input
+        type="date"
+        value={date}
+        class="date-input"
+        aria-label="Jump to date"
+        onchange={(e) => { if (e.currentTarget.value) onDatePicked?.(e.currentTarget.value); }}
+      />
+    </div>
+  {:else}
+    <h1>{dateFormatter.format(parseDate(date))}</h1>
+  {/if}
 </header>
 
 <style>
@@ -50,5 +69,28 @@
     font-weight: 600;
     letter-spacing: -0.02em;
     line-height: 1.2;
+  }
+
+  /* Date jump: transparent input overlaid on the h1 */
+  .date-jump {
+    position: relative;
+    display: inline-block;
+  }
+  .date-jump h1 {
+    transition: color 80ms ease;
+  }
+  .date-jump:hover h1 {
+    color: var(--c-accent);
+  }
+  .date-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+    -webkit-app-region: no-drag;
   }
 </style>

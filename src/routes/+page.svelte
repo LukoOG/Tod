@@ -17,6 +17,7 @@
   let today = $state(localToday());
   let selectedDate = $state(today);
   let slideDirection = $state(1);
+  const reflectionSave: { fn: (() => Promise<void>) | null } = { fn: null };
 
   const activities = $derived(
     dayView?.activities.toSorted(compareActivities) ?? [],
@@ -50,7 +51,8 @@
     if (dayView) dayView.day = day;
   }
 
-  function changeDate(days: number) {
+  async function changeDate(days: number) {
+    if (reflectionSave.fn) { try { await reflectionSave.fn(); } catch {} }
     const date = new Date(`${selectedDate}T00:00:00`);
     date.setDate(date.getDate() + days);
     selectedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -58,10 +60,19 @@
     loadDay();
   }
 
-  function returnToToday() {
+  async function returnToToday() {
     if (selectedDate === today) return;
+    if (reflectionSave.fn) { try { await reflectionSave.fn(); } catch {} }
     slideDirection = selectedDate < today ? 1 : -1;
     selectedDate = today;
+    loadDay();
+  }
+
+  async function jumpToDate(newDate: string) {
+    if (!newDate || newDate === selectedDate) return;
+    if (reflectionSave.fn) { try { await reflectionSave.fn(); } catch {} }
+    slideDirection = newDate > selectedDate ? 1 : -1;
+    selectedDate = newDate;
     loadDay();
   }
 
@@ -118,7 +129,7 @@
           </svg>
         </button>
 
-        <DayHeader date={selectedDate} isToday={selectedDate === today} />
+        <DayHeader date={selectedDate} isToday={selectedDate === today} onDatePicked={jumpToDate} />
 
         <button
           type="button"
@@ -165,6 +176,14 @@
           in:fly={{ x: slideDirection * 16, duration: 120, opacity: 0 }}
           out:fly={{ x: -slideDirection * 16, duration: 120, opacity: 0 }}
         >
+          <!-- Reflection section (primary — journal first) -->
+          <DailyReflection
+            day={dayView.day}
+            isToday={selectedDate === today}
+            onDayUpdated={updateDay}
+            saveRef={reflectionSave}
+          />
+
           <!-- Schedule section -->
           <section class="day-section" aria-labelledby="schedule-heading">
             <h2 class="section-label" id="schedule-heading">Schedule</h2>
@@ -204,9 +223,6 @@
             {/if}
             <AddTask date={selectedDate} onTaskCreated={addTaskToDay} />
           </section>
-
-          <!-- Reflection section -->
-          <DailyReflection day={dayView.day} onDayUpdated={updateDay} />
         </div>
       {/key}
     {/if}

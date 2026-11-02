@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use chrono::NaiveDate;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -68,6 +66,7 @@ impl Database {
 
         Ok(task)
     }
+    #[allow(dead_code)]
     pub fn update_task(&self, task: Task) -> Result<Task, String> {
         let conn = self.connection.lock().unwrap();
         let date_string = task.day_date.format("%Y-%m-%d").to_string();
@@ -99,6 +98,7 @@ impl Database {
         Ok(task)
     }
 
+    #[allow(dead_code)]
     pub fn delete_task(&self, task_id: String) -> Result<(), String> {
         let conn = self.connection.lock().unwrap();
 
