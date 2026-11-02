@@ -1,5 +1,5 @@
-pub(super) mod migrations;
 mod db;
+pub(super) mod migrations;
 
 use rusqlite::{Connection, Result};
 use std::path::Path;

@@ -70,7 +70,8 @@ fn delete_activity_removes_activity_from_database() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     let day_view = generate_day(&db, date).expect("Failed to generate day");
     assert_eq!(day_view.activities.len(), 1);
@@ -97,8 +98,10 @@ fn delete_activity_does_not_remove_other_activities() {
     let routine_1 = named_routine("routine_1", "Morning Workout", vec![1]);
     let routine_2 = named_routine("routine_2", "Morning Reading", vec![1]);
 
-    db.create_routine(routine_1).expect("Failed to create routine 1");
-    db.create_routine(routine_2).expect("Failed to create routine 2");
+    db.create_routine(routine_1)
+        .expect("Failed to create routine 1");
+    db.create_routine(routine_2)
+        .expect("Failed to create routine 2");
 
     let day_view = generate_day(&db, date).expect("Failed to generate day");
     assert_eq!(day_view.activities.len(), 2);
@@ -161,7 +164,8 @@ fn update_activity_notes_saves_notes() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     let day_view = generate_day(&db, date).expect("Failed to generate day");
     let activity_id = day_view.activities[0].id.clone();
@@ -187,7 +191,8 @@ fn update_activity_notes_overwrites_existing_notes() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     let day_view = generate_day(&db, date).expect("Failed to generate day");
     let activity_id = day_view.activities[0].id.clone();
@@ -214,7 +219,8 @@ fn update_activity_notes_clears_notes_when_none() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     let day_view = generate_day(&db, date).expect("Failed to generate day");
     let activity_id = day_view.activities[0].id.clone();
@@ -238,8 +244,7 @@ fn update_activity_notes_clears_notes_when_none() {
 fn update_activity_notes_returns_error_for_missing_id() {
     let db = setup_test_db();
 
-    let result =
-        db.update_activity_notes("nonexistent-id".to_string(), Some("Note".to_string()));
+    let result = db.update_activity_notes("nonexistent-id".to_string(), Some("Note".to_string()));
 
     assert!(
         result.is_err(),

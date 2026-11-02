@@ -235,11 +235,7 @@ impl Database {
         Ok(task)
     }
 
-    pub fn update_task_notes(
-        &self,
-        id: String,
-        notes: Option<String>,
-    ) -> Result<Task, String> {
+    pub fn update_task_notes(&self, id: String, notes: Option<String>) -> Result<Task, String> {
         let conn = self.connection.lock().unwrap();
 
         let rows_affected = conn

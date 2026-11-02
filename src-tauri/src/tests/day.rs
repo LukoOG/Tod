@@ -39,10 +39,7 @@ fn generate_day_returns_existing_day_without_overwriting_it() {
     let result = generate_day(&db, date).expect("Failed to generate day (second)");
 
     assert_eq!(result.day.mood, Some(5));
-    assert_eq!(
-        result.day.reflection,
-        Some("Had a great day".to_string())
-    );
+    assert_eq!(result.day.reflection, Some("Had a great day".to_string()));
 }
 
 // ── Activity generation ───────────────────────────────────────────────────────
@@ -80,7 +77,8 @@ fn generate_day_does_not_create_activity_for_non_matching_routine() {
 
     // Routine is Tuesday-only
     let routine = named_routine("routine_1", "Evening Yoga", vec![2]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     let result = generate_day(&db, date).expect("Failed to generate day");
 
@@ -124,9 +122,12 @@ fn generate_day_creates_activities_for_multiple_matching_routines() {
     let routine_2 = named_routine("routine_2", "Morning Reading", vec![1]);
     let routine_3 = named_routine("routine_3", "Evening Walk", vec![1]);
 
-    db.create_routine(routine_1).expect("Failed to create routine 1");
-    db.create_routine(routine_2).expect("Failed to create routine 2");
-    db.create_routine(routine_3).expect("Failed to create routine 3");
+    db.create_routine(routine_1)
+        .expect("Failed to create routine 1");
+    db.create_routine(routine_2)
+        .expect("Failed to create routine 2");
+    db.create_routine(routine_3)
+        .expect("Failed to create routine 3");
 
     let result = generate_day(&db, date).expect("Failed to generate day");
 
@@ -151,7 +152,8 @@ fn generate_day_does_not_duplicate_activities() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     // First call creates the activity.
     let first = generate_day(&db, date).expect("Failed to generate day (first)");
@@ -173,7 +175,8 @@ fn generate_day_preserves_existing_activity_state() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     // Generate activity.
     let first = generate_day(&db, date).expect("Failed to generate day (first)");
@@ -277,7 +280,8 @@ fn generate_day_returns_activities_and_tasks_together() {
     let date_str = "2026-09-14";
 
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     // Day must exist before creating the task.
     create_day(&db, date_str);

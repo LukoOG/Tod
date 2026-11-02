@@ -1,8 +1,6 @@
 use chrono::{Datelike, NaiveDate};
 
-use crate::{
-    db::Database, models::Activity, views::DayView,
-};
+use crate::{db::Database, models::Activity, views::DayView};
 
 pub fn generate_day(db: &Database, date: NaiveDate) -> Result<DayView, String> {
     let day;
@@ -33,4 +31,3 @@ pub fn generate_day(db: &Database, date: NaiveDate) -> Result<DayView, String> {
         tasks,
     })
 }
-

@@ -1,6 +1,9 @@
+use crate::views::CreateRoutineInput;
+
 use super::super::db::Database;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Routine {
     pub id: String,
@@ -13,37 +16,78 @@ pub struct Routine {
     pub updated_at: String,
 }
 
-impl Database {
-    #[allow(dead_code)]
-    pub fn create_routine(&self, routine: Routine) -> Result<Routine, String> {
-        let conn = self.connection.lock().unwrap();
-        let result = conn.execute(
-        "
-            INSERT INTO routines (id, title, start_time, duration_minutes, days_of_week, active, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-        ",
-        params![
-            routine.id,
-            routine.title,
-            routine.start_time,
-            routine.duration_minutes,
-            routine.days_of_week,
-            routine.active,
-            routine.created_at,
-            routine.updated_at
-        ],
-    );
-        match result {
-            Ok(_) => Ok(routine),
-            Err(e) => Err(format!("Failed to create routine: {}", e)),
+impl From<CreateRoutineInput> for Routine {
+    fn from(value: CreateRoutineInput) -> Self {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        Self {
+            id,
+            title: value.title,
+            start_time: value.start_time,
+            duration_minutes: value.duration_minutes,
+            days_of_week: value.days_of_week,
+            active: true,
+            created_at: now.clone(),
+            updated_at: now,
         }
     }
+}
 
-    #[allow(dead_code)]
+impl Database {
+    /// Shared row mapper — reused by methods that hold an open connection.
+    fn fetch_routine_from_conn(
+        conn: &rusqlite::Connection,
+        id: &str,
+    ) -> Result<Routine, String> {
+        conn.query_row(
+            "SELECT id, title, start_time, duration_minutes, days_of_week, active, created_at, updated_at
+             FROM routines WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok(Routine {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    start_time: row.get(2)?,
+                    duration_minutes: row.get(3)?,
+                    days_of_week: row.get(4)?,
+                    active: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
+            },
+        )
+        .map_err(|e| format!("No routine found with id '{}': {}", id, e))
+    }
+
+    pub fn get_routine_by_id(&self, id: &str) -> Result<Routine, String> {
+        let conn = self.connection.lock().unwrap();
+        Self::fetch_routine_from_conn(&conn, id)
+    }
+
+    pub fn create_routine(&self, routine: Routine) -> Result<Routine, String> {
+        let conn = self.connection.lock().unwrap();
+        conn.execute(
+            "INSERT INTO routines (id, title, start_time, duration_minutes, days_of_week, active, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                routine.id,
+                routine.title,
+                routine.start_time,
+                routine.duration_minutes,
+                routine.days_of_week,
+                routine.active,
+                routine.created_at,
+                routine.updated_at
+            ],
+        )
+        .map_err(|e| format!("Failed to create routine: {}", e))?;
+        Ok(routine)
+    }
+
     pub fn list_routines(&self) -> Result<Vec<Routine>, String> {
         let conn = self.connection.lock().unwrap();
         let mut stmt = conn
-            .prepare("SELECT * FROM routines")
+            .prepare("SELECT * FROM routines ORDER BY created_at ASC")
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
         let routine_iter = stmt
             .query_map([], |row| {
@@ -67,49 +111,56 @@ impl Database {
         Ok(routines)
     }
 
-    #[allow(dead_code)]
     pub fn update_routine(&self, routine: Routine) -> Result<Routine, String> {
         let conn = self.connection.lock().unwrap();
-        let rows_affected = conn.execute(
-        "
-            UPDATE routines
-            SET title = ?2, start_time = ?3, duration_minutes = ?4, days_of_week = ?5, active = ?6, updated_at = ?7
-            WHERE id = ?1
-        ",
-        params![
-            routine.id,
-            routine.title,
-            routine.start_time,
-            routine.duration_minutes,
-            routine.days_of_week,
-            routine.active,
-            routine.updated_at
-        ],
-    )
-    .map_err(|e| format!("Failed to update routine: {}", e))?;
+        let rows_affected = conn
+            .execute(
+                "UPDATE routines
+                 SET title = ?2, start_time = ?3, duration_minutes = ?4, days_of_week = ?5, active = ?6, updated_at = ?7
+                 WHERE id = ?1",
+                params![
+                    routine.id,
+                    routine.title,
+                    routine.start_time,
+                    routine.duration_minutes,
+                    routine.days_of_week,
+                    routine.active,
+                    routine.updated_at
+                ],
+            )
+            .map_err(|e| format!("Failed to update routine: {}", e))?;
         if rows_affected == 0 {
             return Err(format!("No routine found with id: {}", routine.id));
         }
         Ok(routine)
     }
 
-    #[allow(dead_code)]
+    pub fn set_routine_active(&self, id: &str, active: bool) -> Result<Routine, String> {
+        let conn = self.connection.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        let rows_affected = conn
+            .execute(
+                "UPDATE routines SET active = ?1, updated_at = ?2 WHERE id = ?3",
+                params![active, now, id],
+            )
+            .map_err(|e| format!("Failed to update routine: {}", e))?;
+        if rows_affected == 0 {
+            return Err(format!("No routine found with id: {}", id));
+        }
+        Self::fetch_routine_from_conn(&conn, id)
+    }
+
     pub fn delete_routine(&self, routine_id: String) -> Result<(), String> {
         let conn = self.connection.lock().unwrap();
         let rows_affected = conn
             .execute(
-                "
-            DELETE FROM routines
-            WHERE id = ?1
-        ",
+                "DELETE FROM routines WHERE id = ?1",
                 params![routine_id],
             )
-            .map_err(|e| format!("Failed to update routine: {}", e))?;
-
+            .map_err(|e| format!("Failed to delete routine: {}", e))?;
         if rows_affected == 0 {
             return Err(format!("No routine found with id: {}", routine_id));
         }
-
         Ok(())
     }
 
@@ -120,7 +171,7 @@ impl Database {
     ) -> Result<Vec<Routine>, String> {
         let mut stmt = tx
             .prepare(
-                "SELECT 
+                "SELECT
                         routines.id,
                         routines.title,
                         routines.start_time,
@@ -129,9 +180,8 @@ impl Database {
                         routines.active,
                         routines.created_at,
                         routines.updated_at
-                     FROM routines, json_each(days_of_week) 
-                     WHERE json_each.value = ?1 AND routines.active = 1
-                "
+                     FROM routines, json_each(days_of_week)
+                     WHERE json_each.value = ?1 AND routines.active = 1",
             )
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
         let routine_iter = stmt
@@ -156,4 +206,3 @@ impl Database {
         Ok(routines)
     }
 }
-

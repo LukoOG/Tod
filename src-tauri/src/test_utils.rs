@@ -1,7 +1,7 @@
 #[cfg(test)]
-use std::{sync::Mutex};
+use crate::db::{migrations::run_migrations, Database};
 #[cfg(test)]
-use crate::db::{Database, migrations::run_migrations};
+use std::sync::Mutex;
 
 #[cfg(test)]
 pub fn setup_test_db() -> Database {

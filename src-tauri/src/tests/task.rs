@@ -85,9 +85,12 @@ fn get_tasks_for_day_returns_all_tasks_for_that_day() {
     let task_2 = sample_task("2026-09-14", "task_2", "Read for 30 minutes");
     let task_3 = sample_task("2026-09-14", "task_3", "Plan tomorrow");
 
-    db.create_task(task_1.clone()).expect("Failed to create task 1");
-    db.create_task(task_2.clone()).expect("Failed to create task 2");
-    db.create_task(task_3.clone()).expect("Failed to create task 3");
+    db.create_task(task_1.clone())
+        .expect("Failed to create task 1");
+    db.create_task(task_2.clone())
+        .expect("Failed to create task 2");
+    db.create_task(task_3.clone())
+        .expect("Failed to create task 3");
 
     let tasks = db
         .get_tasks_for_day(task_1.day_date)
@@ -167,8 +170,10 @@ fn update_task_does_not_modify_other_tasks() {
     let task_1 = sample_task("2026-09-14", "task_1", "First task");
     let task_2 = sample_task("2026-09-14", "task_2", "Second task");
 
-    db.create_task(task_1.clone()).expect("Failed to create task 1");
-    db.create_task(task_2.clone()).expect("Failed to create task 2");
+    db.create_task(task_1.clone())
+        .expect("Failed to create task 1");
+    db.create_task(task_2.clone())
+        .expect("Failed to create task 2");
 
     let updated_task_1 = crate::models::Task {
         title: "Updated first task".to_string(),
@@ -218,8 +223,10 @@ fn delete_task_does_not_remove_other_tasks() {
     let task_1 = sample_task("2026-09-14", "task_1", "First task");
     let task_2 = sample_task("2026-09-14", "task_2", "Second task");
 
-    db.create_task(task_1.clone()).expect("Failed to create task 1");
-    db.create_task(task_2.clone()).expect("Failed to create task 2");
+    db.create_task(task_1.clone())
+        .expect("Failed to create task 1");
+    db.create_task(task_2.clone())
+        .expect("Failed to create task 2");
 
     db.delete_task(task_1.id.clone())
         .expect("Failed to delete task 1");

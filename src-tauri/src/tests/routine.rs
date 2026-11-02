@@ -1,3 +1,6 @@
+use chrono::NaiveDate;
+
+use crate::domain::generate_day;
 use crate::models::Routine;
 use crate::test_utils::{fixtures::*, setup_test_db};
 
@@ -106,7 +109,8 @@ fn update_routine_updates_all_mutable_fields() {
 
     let original = sample_routine();
 
-    db.create_routine(original).expect("Failed to create routine");
+    db.create_routine(original)
+        .expect("Failed to create routine");
 
     let updated = Routine {
         id: "routine_123".to_string(),
@@ -137,7 +141,8 @@ fn update_routine_can_set_nullable_fields_to_none() {
 
     let original = sample_routine();
 
-    db.create_routine(original).expect("Failed to create routine");
+    db.create_routine(original)
+        .expect("Failed to create routine");
 
     let updated = Routine {
         id: "routine_123".to_string(),
@@ -214,7 +219,8 @@ fn delete_routine_removes_existing_routine() {
 
     let routine = sample_routine();
 
-    db.create_routine(routine).expect("Failed to create routine");
+    db.create_routine(routine)
+        .expect("Failed to create routine");
 
     db.delete_routine("routine_123".to_string())
         .expect("Failed to delete routine");
@@ -231,7 +237,8 @@ fn delete_routine_does_not_remove_other_routines() {
     let first = sample_routine();
     let second = another_routine();
 
-    db.create_routine(first).expect("Failed to create first routine");
+    db.create_routine(first)
+        .expect("Failed to create first routine");
 
     db.create_routine(second.clone())
         .expect("Failed to create second routine");
@@ -373,7 +380,8 @@ fn get_routines_for_day_excludes_inactive_routines() {
     let mut inactive = named_routine("routine_inactive", "Inactive Routine", vec![1]);
     inactive.active = false;
 
-    db.create_routine(inactive).expect("Failed to create routine");
+    db.create_routine(inactive)
+        .expect("Failed to create routine");
 
     let mut conn = db.connection.lock().unwrap();
     let tx = conn.transaction().unwrap();
@@ -409,3 +417,207 @@ fn get_routines_for_day_returns_only_active_matching_routines() {
     assert_eq!(routines[0].id, active.id);
 }
 
+// ── set_routine_active ────────────────────────────────────────────────────────
+
+#[test]
+fn set_routine_active_deactivates_an_active_routine() {
+    let db = setup_test_db();
+    let routine = sample_routine();
+    db.create_routine(routine).expect("Failed to create routine");
+
+    let result = db
+        .set_routine_active("routine_123", false)
+        .expect("Failed to deactivate");
+
+    assert!(!result.active);
+
+    let from_db = db.list_routines().expect("list");
+    assert!(!from_db[0].active);
+}
+
+#[test]
+fn set_routine_active_activates_an_inactive_routine() {
+    let db = setup_test_db();
+    let mut routine = sample_routine();
+    routine.active = false;
+    db.create_routine(routine).expect("Failed to create routine");
+
+    let result = db
+        .set_routine_active("routine_123", true)
+        .expect("Failed to activate");
+
+    assert!(result.active);
+
+    let from_db = db.list_routines().expect("list");
+    assert!(from_db[0].active);
+}
+
+#[test]
+fn set_routine_active_returns_error_for_missing_id() {
+    let db = setup_test_db();
+
+    let result = db.set_routine_active("no_such_id", false);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn set_routine_active_updates_updated_at() {
+    let db = setup_test_db();
+    let routine = sample_routine();
+    let original_updated_at = routine.updated_at.clone();
+    db.create_routine(routine).expect("Failed to create routine");
+
+    let result = db
+        .set_routine_active("routine_123", false)
+        .expect("Failed to deactivate");
+
+    assert_ne!(result.updated_at, original_updated_at);
+}
+
+#[test]
+fn deactivated_routine_does_not_generate_activity() {
+    let db = setup_test_db();
+    // Monday
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let routine = named_routine("routine_1", "Morning Run", vec![1]);
+    db.create_routine(routine).expect("create");
+
+    // Deactivate before the day is ever generated.
+    db.set_routine_active("routine_1", false)
+        .expect("deactivate");
+
+    let day = generate_day(&db, date).expect("generate_day");
+
+    assert!(day.activities.is_empty());
+}
+
+#[test]
+fn reactivated_routine_resumes_activity_generation() {
+    let db = setup_test_db();
+    // Monday
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let mut routine = named_routine("routine_1", "Morning Run", vec![1]);
+    routine.active = false;
+    db.create_routine(routine).expect("create inactive");
+
+    // Inactive — no activity generated.
+    let day = generate_day(&db, date).expect("generate_day (inactive)");
+    assert!(day.activities.is_empty());
+
+    // Reactivate.
+    db.set_routine_active("routine_1", true)
+        .expect("reactivate");
+
+    // Same date — no prior activity exists for this routine+date, so one is created.
+    let day = generate_day(&db, date).expect("generate_day (active)");
+    assert_eq!(day.activities.len(), 1);
+    assert_eq!(
+        day.activities[0].source_routine_id,
+        Some("routine_1".to_string())
+    );
+}
+
+// ── Historical activity preservation ─────────────────────────────────────────
+
+#[test]
+fn editing_routine_does_not_modify_historical_activities() {
+    let db = setup_test_db();
+    // Monday
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let routine = named_routine("routine_1", "Morning Workout", vec![1]);
+    db.create_routine(routine.clone()).expect("create");
+
+    // Generate the day to materialise the activity.
+    let day = generate_day(&db, date).expect("generate_day");
+    assert_eq!(day.activities.len(), 1);
+    let activity_id = day.activities[0].id.clone();
+    assert_eq!(day.activities[0].title, "Morning Workout");
+
+    // Simulate the user completing the activity and adding a note.
+    {
+        let conn = db.connection.lock().unwrap();
+        conn.execute(
+            "UPDATE activities SET completed = 1, notes = 'Done!' WHERE id = ?1",
+            rusqlite::params![&activity_id],
+        )
+        .expect("mark completed");
+    }
+
+    // Edit the routine — change title, days and time.
+    let updated = Routine {
+        id: "routine_1".to_string(),
+        title: "Evening Run".to_string(),
+        start_time: Some("18:00".to_string()),
+        duration_minutes: Some(30),
+        days_of_week: vec![2, 4],
+        active: true,
+        created_at: routine.created_at.clone(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+    };
+    db.update_routine(updated).expect("update");
+
+    // Historical activity must be completely unchanged.
+    let conn = db.connection.lock().unwrap();
+    let (title, completed, notes): (String, bool, Option<String>) = conn
+        .query_row(
+            "SELECT title, completed, notes FROM activities WHERE id = ?1",
+            rusqlite::params![activity_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("fetch activity");
+
+    assert_eq!(title, "Morning Workout");
+    assert!(completed);
+    assert_eq!(notes, Some("Done!".to_string()));
+}
+
+#[test]
+fn deleting_routine_preserves_historical_activities_with_null_source() {
+    let db = setup_test_db();
+    // Monday
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let routine = named_routine("routine_1", "Morning Workout", vec![1]);
+    db.create_routine(routine).expect("create");
+
+    let day = generate_day(&db, date).expect("generate_day");
+    assert_eq!(day.activities.len(), 1);
+    let activity_id = day.activities[0].id.clone();
+
+    // Delete the routine.
+    db.delete_routine("routine_1".to_string()).expect("delete");
+
+    // The activity must still exist.
+    let conn = db.connection.lock().unwrap();
+    let (title, source_id): (String, Option<String>) = conn
+        .query_row(
+            "SELECT title, source_routine_id FROM activities WHERE id = ?1",
+            rusqlite::params![activity_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("activity must survive routine deletion");
+
+    assert_eq!(title, "Morning Workout");
+    // ON DELETE SET NULL: link is cleared, activity row is preserved.
+    assert_eq!(source_id, None);
+}
+
+#[test]
+fn get_routine_by_id_returns_correct_routine() {
+    let db = setup_test_db();
+    let routine = sample_routine();
+    db.create_routine(routine.clone()).expect("create");
+
+    let fetched = db.get_routine_by_id("routine_123").expect("get by id");
+    assert_eq!(fetched, routine);
+}
+
+#[test]
+fn get_routine_by_id_returns_error_for_missing_id() {
+    let db = setup_test_db();
+    assert!(db.get_routine_by_id("no_such_id").is_err());
+}
