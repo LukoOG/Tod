@@ -6,7 +6,9 @@
   import TaskItem from "../lib/components/TaskItem.svelte";
   import AddTask from "$lib/components/AddTask.svelte";
   import DailyReflection from "$lib/components/DailyReflection.svelte";
+  import RoutinesPanel from "$lib/components/RoutinesPanel.svelte";
   import { getDay } from "../lib/api/day";
+  import { getPlatform } from "$lib/api";
   import { localToday } from "$lib/status";
   import type { Activity, Day, DayView } from "../lib/types";
 
@@ -17,6 +19,7 @@
   let today = $state(localToday());
   let selectedDate = $state(today);
   let slideDirection = $state(1);
+  let showRoutines = $state(false);
   const reflectionSave: { fn: (() => Promise<void>) | null } = { fn: null };
 
   const activities = $derived(
@@ -90,7 +93,7 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    // Left/Right arrow keys for date navigation (when no input focused)
+    if (showRoutines) return;
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
     if (e.key === "ArrowLeft") { e.preventDefault(); changeDate(-1); }
@@ -98,7 +101,13 @@
     if (e.key === "t" || e.key === "T") { e.preventDefault(); returnToToday(); }
   }
 
-  onMount(loadDay);
+  onMount(async () => {
+    try {
+      const platform = await getPlatform();
+      document.documentElement.dataset.platform = platform;
+    } catch {}
+    loadDay();
+  });
 </script>
 
 <svelte:head>
@@ -152,13 +161,27 @@
     </div>
 
     <div class="toolbar-right">
-      <!-- reserved for future actions -->
+      <button
+        type="button"
+        class="routines-btn"
+        class:active={showRoutines}
+        onclick={() => showRoutines = !showRoutines}
+        aria-pressed={showRoutines}
+        aria-label="Manage routines"
+        title="Routines"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 4h12M2 8h8M2 12h10"/>
+        </svg>
+      </button>
     </div>
   </header>
 
   <!-- Main scrollable content -->
   <main class="content-area" tabindex="-1">
-    {#if isLoading}
+    {#if showRoutines}
+      <RoutinesPanel onClose={() => showRoutines = false} />
+    {:else if isLoading}
       <div class="state-view" aria-live="polite" aria-busy="true">
         <div class="loading-dots" aria-label="Loading…">
           <span></span><span></span><span></span>
@@ -231,7 +254,11 @@
   <!-- Status bar -->
   <footer class="statusbar">
     <span class="statusbar-date">{selectedDate}</span>
-    <span class="statusbar-hint" aria-label="Keyboard shortcuts">← → to navigate · T for today</span>
+    {#if showRoutines}
+      <span class="statusbar-hint" aria-label="Keyboard shortcuts">Esc to close</span>
+    {:else}
+      <span class="statusbar-hint" aria-label="Keyboard shortcuts">← → to navigate · T for today</span>
+    {/if}
   </footer>
 </div>
 
@@ -451,6 +478,25 @@
   .today-btn:hover { background: var(--c-accent-muted); border-color: var(--c-accent); }
   .today-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
 
+  .routines-btn {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--c-label-tertiary);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    transition: background 80ms ease, color 80ms ease;
+  }
+  .routines-btn svg { width: 0.875rem; height: 0.875rem; }
+  .routines-btn:hover { background: var(--c-fill-primary); color: var(--c-label-primary); }
+  .routines-btn.active { background: var(--c-fill-secondary); color: var(--c-accent); }
+  .routines-btn:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; }
+
   /* ═══════════════════════════════════════════════
      CONTENT AREA
   ═══════════════════════════════════════════════ */
@@ -582,5 +628,27 @@
       width: calc(100% - 2rem);
       padding-top: 1.25rem;
     }
+  }
+
+  /* ═══════════════════════════════════════════════
+     WINDOWS / FLUENT DESIGN OVERRIDES
+     Applied when data-platform="windows" is set
+     on <html> at startup.
+  ═══════════════════════════════════════════════ */
+  :global([data-platform="windows"]) {
+    --font-system: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --c-accent:       #0078d4;
+    --c-accent-muted: rgba(0, 120, 212, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :global([data-platform="windows"]) {
+      --c-accent:       #60cdff;
+      --c-accent-muted: rgba(96, 205, 255, 0.18);
+    }
+  }
+
+  /* No traffic-light spacer on Windows — native title bar handles controls */
+  :global([data-platform="windows"]) .window-controls-spacer {
+    width: 0;
   }
 </style>
