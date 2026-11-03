@@ -17,6 +17,16 @@ pub fn generate_day(db: &Database, date: NaiveDate, today: NaiveDate) -> Result<
         day = Database::get_or_create_day(&tx, &date_string)?;
 
         if date >= today {
+            if date > today {
+                // Future day: wipe uncompleted routine-sourced activities so the
+                // preview always reflects the current routine set.
+                tx.execute(
+                    "DELETE FROM activities
+                     WHERE day_date = ?1 AND source_routine_id IS NOT NULL AND completed = 0",
+                    rusqlite::params![date_string],
+                )
+                .map_err(|e| format!("Failed to clear future activities: {}", e))?;
+            }
             let weekday = date.weekday().number_from_monday() as u8;
             let routines = db.get_routines_for_day(&tx, weekday)?;
             for routine in routines {

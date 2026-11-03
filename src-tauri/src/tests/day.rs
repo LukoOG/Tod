@@ -93,6 +93,65 @@ fn generate_day_adds_activities_for_future_date() {
 }
 
 #[test]
+fn generate_day_future_day_reflects_updated_routine() {
+    let db = setup_test_db();
+
+    let future = NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(); // Monday
+    let today = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let routine = named_routine("r1", "Morning Run", vec![1]);
+    db.create_routine(routine).expect("create");
+
+    // First visit — activity generated with original title.
+    let first = generate_day(&db, future, today).expect("first visit");
+    assert_eq!(first.activities[0].title, "Morning Run");
+
+    // User edits the routine title.
+    assert!(first.activities[0].source_routine_id.is_some());
+    let mut r = db.get_routine_by_id("r1").expect("get routine");
+    r.title = "Morning Run + Stretch".to_string();
+    db.update_routine(r).expect("update routine");
+
+    // Second visit — must reflect the updated title.
+    let second = generate_day(&db, future, today).expect("second visit");
+    assert_eq!(second.activities.len(), 1);
+    assert_eq!(second.activities[0].title, "Morning Run + Stretch");
+}
+
+#[test]
+fn generate_day_future_day_preserves_completed_activities() {
+    let db = setup_test_db();
+
+    let future = NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(); // Monday
+    let today = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let routine = named_routine("r1", "Morning Run", vec![1]);
+    db.create_routine(routine).expect("create");
+
+    let first = generate_day(&db, future, today).expect("first visit");
+    let activity_id = first.activities[0].id.clone();
+
+    // Pre-complete the future activity.
+    {
+        let conn = db.connection.lock().unwrap();
+        conn.execute(
+            "UPDATE activities SET completed = 1 WHERE id = ?1",
+            rusqlite::params![activity_id],
+        )
+        .expect("mark complete");
+    }
+
+    // Second visit after editing the routine — completed activity must survive.
+    let mut r = db.get_routine_by_id("r1").expect("get routine");
+    r.title = "Morning Run + Stretch".to_string();
+    db.update_routine(r).expect("update routine");
+
+    let second = generate_day(&db, future, today).expect("second visit");
+    assert_eq!(second.activities.len(), 1, "completed activity must be kept");
+    assert!(second.activities[0].completed);
+}
+
+#[test]
 fn generate_day_preserves_already_recorded_activities_on_past_revisit() {
     let db = setup_test_db();
 
