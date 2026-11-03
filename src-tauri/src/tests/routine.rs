@@ -488,7 +488,7 @@ fn deactivated_routine_does_not_generate_activity() {
     db.set_routine_active("routine_1", false)
         .expect("deactivate");
 
-    let day = generate_day(&db, date).expect("generate_day");
+    let day = generate_day(&db, date, date).expect("generate_day");
 
     assert!(day.activities.is_empty());
 }
@@ -504,7 +504,7 @@ fn reactivated_routine_resumes_activity_generation() {
     db.create_routine(routine).expect("create inactive");
 
     // Inactive — no activity generated.
-    let day = generate_day(&db, date).expect("generate_day (inactive)");
+    let day = generate_day(&db, date, date).expect("generate_day (inactive)");
     assert!(day.activities.is_empty());
 
     // Reactivate.
@@ -512,7 +512,7 @@ fn reactivated_routine_resumes_activity_generation() {
         .expect("reactivate");
 
     // Same date — no prior activity exists for this routine+date, so one is created.
-    let day = generate_day(&db, date).expect("generate_day (active)");
+    let day = generate_day(&db, date, date).expect("generate_day (active)");
     assert_eq!(day.activities.len(), 1);
     assert_eq!(
         day.activities[0].source_routine_id,
@@ -532,7 +532,7 @@ fn editing_routine_does_not_modify_historical_activities() {
     db.create_routine(routine.clone()).expect("create");
 
     // Generate the day to materialise the activity.
-    let day = generate_day(&db, date).expect("generate_day");
+    let day = generate_day(&db, date, date).expect("generate_day");
     assert_eq!(day.activities.len(), 1);
     let activity_id = day.activities[0].id.clone();
     assert_eq!(day.activities[0].title, "Morning Workout");
@@ -584,7 +584,7 @@ fn deleting_routine_preserves_historical_activities_with_null_source() {
     let routine = named_routine("routine_1", "Morning Workout", vec![1]);
     db.create_routine(routine).expect("create");
 
-    let day = generate_day(&db, date).expect("generate_day");
+    let day = generate_day(&db, date, date).expect("generate_day");
     assert_eq!(day.activities.len(), 1);
     let activity_id = day.activities[0].id.clone();
 
@@ -701,8 +701,8 @@ fn get_routines_for_day_works_after_api_create() {
     let date_mon = NaiveDate::from_ymd_opt(2026, 11, 2).unwrap(); // Monday
     let date_tue = NaiveDate::from_ymd_opt(2026, 11, 3).unwrap(); // Tuesday
 
-    let day_mon = generate_day(&db, date_mon).expect("generate monday");
-    let day_tue = generate_day(&db, date_tue).expect("generate tuesday");
+    let day_mon = generate_day(&db, date_mon, date_mon).expect("generate monday");
+    let day_tue = generate_day(&db, date_tue, date_tue).expect("generate tuesday");
 
     assert_eq!(day_mon.activities.len(), 1, "Monday should have 1 activity");
     assert_eq!(day_tue.activities.len(), 0, "Tuesday should have no activities");

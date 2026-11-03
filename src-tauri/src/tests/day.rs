@@ -11,7 +11,7 @@ fn generate_day_creates_day_if_missing() {
 
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert_eq!(result.day.date, date);
 }
@@ -23,7 +23,7 @@ fn generate_day_returns_existing_day_without_overwriting_it() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     // First generation creates the day.
-    generate_day(&db, date).expect("Failed to generate day (first)");
+    generate_day(&db, date, date).expect("Failed to generate day (first)");
 
     // Simulate user editing the day's metadata.
     {
@@ -36,10 +36,92 @@ fn generate_day_returns_existing_day_without_overwriting_it() {
     }
 
     // Second generation must return the existing day (not reset it).
-    let result = generate_day(&db, date).expect("Failed to generate day (second)");
+    let result = generate_day(&db, date, date).expect("Failed to generate day (second)");
 
     assert_eq!(result.day.mood, Some(5));
     assert_eq!(result.day.reflection, Some("Had a great day".to_string()));
+}
+
+// ── Historical lock ───────────────────────────────────────────────────────────
+
+#[test]
+fn generate_day_does_not_add_activities_for_past_date() {
+    let db = setup_test_db();
+
+    // Monday in the past
+    let past = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+    let today = NaiveDate::from_ymd_opt(2026, 9, 15).unwrap(); // one day later
+
+    let routine = named_routine("r1", "Morning Run", vec![1]); // Monday
+    db.create_routine(routine).expect("create routine");
+
+    let result = generate_day(&db, past, today).expect("generate past day");
+
+    assert!(
+        result.activities.is_empty(),
+        "past day must not be back-filled with current routines"
+    );
+}
+
+#[test]
+fn generate_day_adds_activities_for_today() {
+    let db = setup_test_db();
+
+    let today = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap(); // Monday
+
+    let routine = named_routine("r1", "Morning Run", vec![1]);
+    db.create_routine(routine).expect("create routine");
+
+    let result = generate_day(&db, today, today).expect("generate today");
+
+    assert_eq!(result.activities.len(), 1);
+}
+
+#[test]
+fn generate_day_adds_activities_for_future_date() {
+    let db = setup_test_db();
+
+    let future = NaiveDate::from_ymd_opt(2026, 9, 21).unwrap(); // next Monday
+    let today = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
+
+    let routine = named_routine("r1", "Morning Run", vec![1]);
+    db.create_routine(routine).expect("create routine");
+
+    let result = generate_day(&db, future, today).expect("generate future day");
+
+    assert_eq!(result.activities.len(), 1);
+}
+
+#[test]
+fn generate_day_preserves_already_recorded_activities_on_past_revisit() {
+    let db = setup_test_db();
+
+    let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap(); // Monday
+    let today_then = date; // when originally visited
+    let today_now = NaiveDate::from_ymd_opt(2026, 9, 15).unwrap(); // one day later
+
+    let routine = named_routine("r1", "Morning Run", vec![1]);
+    db.create_routine(routine).expect("create routine");
+
+    // First visit (on the day itself) — activity is generated.
+    let first = generate_day(&db, date, today_then).expect("first visit");
+    assert_eq!(first.activities.len(), 1);
+
+    // User completes the activity.
+    let activity_id = first.activities[0].id.clone();
+    {
+        let conn = db.connection.lock().unwrap();
+        conn.execute(
+            "UPDATE activities SET completed = 1 WHERE id = ?1",
+            rusqlite::params![activity_id],
+        )
+        .expect("mark complete");
+    }
+
+    // Revisit the next day — no new activities added, but existing one is returned.
+    let second = generate_day(&db, date, today_now).expect("second visit");
+    assert_eq!(second.activities.len(), 1, "existing activity must still be returned");
+    assert!(second.activities[0].completed, "completed state must be preserved");
 }
 
 // ── Activity generation ───────────────────────────────────────────────────────
@@ -55,7 +137,7 @@ fn generate_day_creates_activity_for_matching_routine() {
     db.create_routine(routine.clone())
         .expect("Failed to create routine");
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert_eq!(result.activities.len(), 1);
 
@@ -80,7 +162,7 @@ fn generate_day_does_not_create_activity_for_non_matching_routine() {
     db.create_routine(routine)
         .expect("Failed to create routine");
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert!(result.activities.is_empty());
 }
@@ -102,7 +184,7 @@ fn generate_day_does_not_create_activity_for_inactive_routine() {
     db.create_routine(inactive_routine)
         .expect("Failed to create inactive routine");
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert_eq!(result.activities.len(), 1);
     assert_eq!(
@@ -129,7 +211,7 @@ fn generate_day_creates_activities_for_multiple_matching_routines() {
     db.create_routine(routine_3)
         .expect("Failed to create routine 3");
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert_eq!(result.activities.len(), 3);
 
@@ -156,13 +238,13 @@ fn generate_day_does_not_duplicate_activities() {
         .expect("Failed to create routine");
 
     // First call creates the activity.
-    let first = generate_day(&db, date).expect("Failed to generate day (first)");
+    let first = generate_day(&db, date, date).expect("Failed to generate day (first)");
     assert_eq!(first.activities.len(), 1);
 
     let first_activity_id = first.activities[0].id.clone();
 
     // Second call must NOT create a duplicate.
-    let second = generate_day(&db, date).expect("Failed to generate day (second)");
+    let second = generate_day(&db, date, date).expect("Failed to generate day (second)");
     assert_eq!(second.activities.len(), 1);
     assert_eq!(second.activities[0].id, first_activity_id);
 }
@@ -179,7 +261,7 @@ fn generate_day_preserves_existing_activity_state() {
         .expect("Failed to create routine");
 
     // Generate activity.
-    let first = generate_day(&db, date).expect("Failed to generate day (first)");
+    let first = generate_day(&db, date, date).expect("Failed to generate day (first)");
     assert_eq!(first.activities.len(), 1);
 
     let activity_id = first.activities[0].id.clone();
@@ -195,7 +277,7 @@ fn generate_day_preserves_existing_activity_state() {
     }
 
     // Generate the day again — completion state must be preserved.
-    let result = generate_day(&db, date).expect("Failed to generate day (second)");
+    let result = generate_day(&db, date, date).expect("Failed to generate day (second)");
 
     assert_eq!(result.activities.len(), 1);
 
@@ -225,7 +307,7 @@ fn generate_day_returns_empty_tasks_when_none_exist() {
 
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert!(result.tasks.is_empty());
 }
@@ -243,7 +325,7 @@ fn generate_day_returns_existing_tasks_for_the_date() {
     db.create_task(task.clone()).expect("Failed to create task");
 
     let parsed_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").unwrap();
-    let result = generate_day(&db, parsed_date).expect("Failed to generate day");
+    let result = generate_day(&db, parsed_date, parsed_date).expect("Failed to generate day");
 
     assert_eq!(result.tasks.len(), 1);
     assert_eq!(result.tasks[0], task);
@@ -265,7 +347,7 @@ fn generate_day_returns_only_tasks_for_requested_date() {
         .expect("Failed to create tomorrow's task");
 
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert_eq!(result.tasks.len(), 1);
     assert_eq!(result.tasks[0], task_today);
@@ -289,7 +371,7 @@ fn generate_day_returns_activities_and_tasks_together() {
     let task = sample_task(date_str, "task_1", "Write journal entry");
     db.create_task(task.clone()).expect("Failed to create task");
 
-    let result = generate_day(&db, date).expect("Failed to generate day");
+    let result = generate_day(&db, date, date).expect("Failed to generate day");
 
     assert_eq!(result.day.date, date);
     assert_eq!(result.activities.len(), 1);
@@ -323,7 +405,7 @@ fn update_day_reflection_updates_existing_day() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     // Create the day via generate_day first.
-    generate_day(&db, date).expect("Failed to generate day");
+    generate_day(&db, date, date).expect("Failed to generate day");
 
     let result = db
         .update_day_reflection(date, Some("Better than yesterday".to_string()), Some(5))
@@ -340,7 +422,7 @@ fn update_day_reflection_does_not_create_duplicate_day() {
     let date = NaiveDate::from_ymd_opt(2026, 9, 14).unwrap();
 
     // Create a day entry.
-    generate_day(&db, date).expect("Failed to generate day");
+    generate_day(&db, date, date).expect("Failed to generate day");
 
     // Update it twice — must not create a second row.
     db.update_day_reflection(date, Some("First reflection".to_string()), Some(3))

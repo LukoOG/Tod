@@ -30,7 +30,7 @@ fn update_activity_updates_all_mutable_fields() {
     db.create_routine(routine.clone())
         .expect("Failed to create routine");
 
-    let day_view = generate_day(&db, date).expect("Failed to generate day");
+    let day_view = generate_day(&db, date, date).expect("Failed to generate day");
     assert_eq!(day_view.activities.len(), 1);
 
     let original = day_view.activities[0].clone();
@@ -73,7 +73,7 @@ fn delete_activity_removes_activity_from_database() {
     db.create_routine(routine)
         .expect("Failed to create routine");
 
-    let day_view = generate_day(&db, date).expect("Failed to generate day");
+    let day_view = generate_day(&db, date, date).expect("Failed to generate day");
     assert_eq!(day_view.activities.len(), 1);
 
     let activity_id = day_view.activities[0].id.clone();
@@ -103,7 +103,7 @@ fn delete_activity_does_not_remove_other_activities() {
     db.create_routine(routine_2)
         .expect("Failed to create routine 2");
 
-    let day_view = generate_day(&db, date).expect("Failed to generate day");
+    let day_view = generate_day(&db, date, date).expect("Failed to generate day");
     assert_eq!(day_view.activities.len(), 2);
 
     // Delete only the first activity.
@@ -130,7 +130,7 @@ fn insert_activity_if_missing_does_not_overwrite_existing_activity() {
         .expect("Failed to create routine");
 
     // First generate: creates the activity.
-    let first = generate_day(&db, date).expect("Failed to generate day (first)");
+    let first = generate_day(&db, date, date).expect("Failed to generate day (first)");
     let activity_id = first.activities[0].id.clone();
 
     // Manually mark activity as completed.
@@ -144,7 +144,7 @@ fn insert_activity_if_missing_does_not_overwrite_existing_activity() {
     }
 
     // Second generate: should NOT overwrite the existing completed activity.
-    let second = generate_day(&db, date).expect("Failed to generate day (second)");
+    let second = generate_day(&db, date, date).expect("Failed to generate day (second)");
 
     assert_eq!(second.activities.len(), 1);
     assert_eq!(second.activities[0].id, activity_id);
@@ -167,7 +167,7 @@ fn update_activity_notes_saves_notes() {
     db.create_routine(routine)
         .expect("Failed to create routine");
 
-    let day_view = generate_day(&db, date).expect("Failed to generate day");
+    let day_view = generate_day(&db, date, date).expect("Failed to generate day");
     let activity_id = day_view.activities[0].id.clone();
 
     let result = db
@@ -194,7 +194,7 @@ fn update_activity_notes_overwrites_existing_notes() {
     db.create_routine(routine)
         .expect("Failed to create routine");
 
-    let day_view = generate_day(&db, date).expect("Failed to generate day");
+    let day_view = generate_day(&db, date, date).expect("Failed to generate day");
     let activity_id = day_view.activities[0].id.clone();
 
     db.update_activity_notes(activity_id.clone(), Some("First note".to_string()))
@@ -222,7 +222,7 @@ fn update_activity_notes_clears_notes_when_none() {
     db.create_routine(routine)
         .expect("Failed to create routine");
 
-    let day_view = generate_day(&db, date).expect("Failed to generate day");
+    let day_view = generate_day(&db, date, date).expect("Failed to generate day");
     let activity_id = day_view.activities[0].id.clone();
 
     db.update_activity_notes(activity_id.clone(), Some("Some note".to_string()))
