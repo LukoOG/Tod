@@ -45,6 +45,7 @@
   onMount(async () => {
     try {
       routines = await listRoutines();
+      console.log("Returned routines", routines)
     } catch (e) {
       loadError = e instanceof Error ? e.message : "Failed to load routines.";
     } finally {
@@ -73,6 +74,7 @@
     formStartTime = routine.start_time ?? "";
     formDuration = routine.duration_minutes?.toString() ?? "";
     formDays = [...routine.days_of_week].sort((a, b) => a - b);
+    console.log(routine.days_of_week)
     formError = null;
     formMode = { kind: "edit", id: routine.id };
     setTimeout(() => titleInputEl?.focus(), 0);
@@ -95,8 +97,9 @@
     if (isSubmitting) return;
     const title = formTitle.trim();
     const startTime = formStartTime.trim() || null;
-    const rawDur = formDuration.trim();
-    const durationMinutes = rawDur ? parseInt(rawDur, 10) : null;
+    const rawDur = String(formDuration).trim();
+    const parsedDur = parseInt(rawDur, 10);
+    const durationMinutes = Number.isFinite(parsedDur) ? parsedDur : null;
 
     if (!title) { formError = "Title is required."; titleInputEl?.focus(); return; }
     if (formDays.length === 0) { formError = "Select at least one day."; return; }
@@ -121,12 +124,14 @@
           duration_minutes: durationMinutes,
           days_of_week: formDays,
         };
+        console.log(formDays)
         const updated = await updateRoutine(input);
         routines = routines.map(r => r.id === updated.id ? updated : r);
       }
       closeForm();
     } catch (e) {
       formError = e instanceof Error ? e.message : "Failed to save routine.";
+      console.error(e)
     } finally {
       isSubmitting = false;
     }

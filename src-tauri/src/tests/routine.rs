@@ -621,3 +621,89 @@ fn get_routine_by_id_returns_error_for_missing_id() {
     let db = setup_test_db();
     assert!(db.get_routine_by_id("no_such_id").is_err());
 }
+
+// ── days_of_week serialization ────────────────────────────────────────────────
+
+/// Rows written by the API are now stored as JSON TEXT. Verify they round-trip
+/// correctly through all three read paths.
+#[test]
+fn days_of_week_api_roundtrip_reads_correct_values() {
+    let db = setup_test_db();
+    let routine = named_routine("r1", "API Round-trip", vec![1, 3, 5]);
+    db.create_routine(routine).expect("create");
+
+    // list_routines
+    let listed = db.list_routines().expect("list");
+    assert_eq!(listed[0].days_of_week, vec![1u8, 3, 5]);
+
+    // get_routine_by_id
+    let fetched = db.get_routine_by_id("r1").expect("get by id");
+    assert_eq!(fetched.days_of_week, vec![1u8, 3, 5]);
+}
+
+/// The write side must store JSON TEXT (not a BLOB of raw byte values) so that
+/// SQLite's `json_each(days_of_week)` works correctly in `get_routines_for_day`.
+#[test]
+fn create_routine_stores_days_of_week_as_json_text() {
+    let db = setup_test_db();
+    let routine = named_routine("r1", "Storage Check", vec![2, 4, 6]);
+    db.create_routine(routine).expect("create");
+
+    let raw: String = {
+        let conn = db.connection.lock().unwrap();
+        conn.query_row(
+            "SELECT days_of_week FROM routines WHERE id = 'r1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("fetch raw column")
+    };
+
+    // Must be valid JSON parseable back to the original vec.
+    let parsed: Vec<u8> = serde_json::from_str(&raw).expect("stored value must be JSON text");
+    assert_eq!(parsed, vec![2u8, 4, 6]);
+}
+
+/// `X'5b312c335d'` is the legacy seed format: a BLOB whose bytes are the
+/// ASCII characters of the JSON string `"[1,3]"`. The helper must decode it to
+/// `[1, 3]` even though rusqlite surfaces it as a `Blob` value ref.
+#[test]
+fn days_of_week_legacy_blob_json_bytes_are_decoded_correctly() {
+    let db = setup_test_db();
+    {
+        let conn = db.connection.lock().unwrap();
+        // X'5b312c335d' == bytes [0x5b,0x31,0x2c,0x33,0x5d] == ASCII chars of "[1,3]"
+        conn.execute(
+            "INSERT INTO routines (id, title, start_time, duration_minutes, days_of_week, active, created_at, updated_at)
+             VALUES ('legacy', 'Seed Row', NULL, NULL, X'5b312c335d', 1,
+                     '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            [],
+        )
+        .expect("raw insert");
+    }
+
+    let listed = db.list_routines().expect("list");
+    assert_eq!(listed[0].days_of_week, vec![1u8, 3]);
+
+    let fetched = db.get_routine_by_id("legacy").expect("get by id");
+    assert_eq!(fetched.days_of_week, vec![1u8, 3]);
+}
+
+/// After the fix, `create_routine` stores JSON TEXT so `json_each` can parse
+/// it; `get_routines_for_day` must therefore find the routine on its scheduled days.
+#[test]
+fn get_routines_for_day_works_after_api_create() {
+    let db = setup_test_db();
+    // Weekdays 1 (Mon) and 3 (Wed)
+    let routine = named_routine("r1", "MW Class", vec![1, 3]);
+    db.create_routine(routine).expect("create");
+
+    let date_mon = NaiveDate::from_ymd_opt(2026, 11, 2).unwrap(); // Monday
+    let date_tue = NaiveDate::from_ymd_opt(2026, 11, 3).unwrap(); // Tuesday
+
+    let day_mon = generate_day(&db, date_mon).expect("generate monday");
+    let day_tue = generate_day(&db, date_tue).expect("generate tuesday");
+
+    assert_eq!(day_mon.activities.len(), 1, "Monday should have 1 activity");
+    assert_eq!(day_tue.activities.len(), 0, "Tuesday should have no activities");
+}
